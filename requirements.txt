@@ -1,0 +1,9 @@
+numpy
+PyOpenGL
+scipy
+scikit-learn
+matplotlib
+scikit-image
+h5py
+mayavi
+dlib
