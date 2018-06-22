@@ -54,7 +54,7 @@ def generateTexture(vertexCoord, texParam, model):
     # Evaluate spherical harmonics at face shape normals
     vertexNorms = calcNormals(vertexCoord, model)
     sh = sh9(vertexNorms[:, 0], vertexNorms[:, 1], vertexNorms[:, 2])
-    
+
     I = np.empty((3, model.numVertices))
     for c in range(3):
         I[c, :] = np.dot(shCoef[:, c], sh) * texture[c, :]
@@ -95,9 +95,9 @@ def calcNormals(vertexCoord, model):
         ndarray: Per-vertex normal vectors
     """
     faceNorm = np.cross(vertexCoord[:, model.face[:, 0]] - vertexCoord[:, model.face[:, 1]], vertexCoord[:, model.face[:, 0]] - vertexCoord[:, model.face[:, 2]], axisa = 0, axisb = 0)
-    
+
     vNorm = np.array([np.sum(faceNorm[faces, :], axis = 0) for faces in model.vertex2face])
-    
+
     return normalize(vNorm)
 
 def subdivide(v, f):

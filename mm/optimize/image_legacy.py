@@ -266,7 +266,7 @@ def textureLightingCost(texParam, img, vertexCoord, sh, model, renderObj, w = (1
     # Color matching cost
     r = (rendering - img).flatten()
     Ecol = np.dot(r, r) / pixelCoord.shape[0]
-    
+
     # Statistical regularization
     Ereg = np.sum(texCoef ** 2 / model.texEval)
     

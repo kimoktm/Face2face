@@ -87,15 +87,38 @@ def sh9(x, y, z):
     """
     First nine spherical harmonics as functions of Cartesian coordinates
     """
-    h = np.empty((9, x.size))
-    h[0, :] = 1/np.sqrt(4*np.pi) * np.ones(x.size)
-    h[1, :] = np.sqrt(3/(4*np.pi)) * z
-    h[2, :] = np.sqrt(3/(4*np.pi)) * x
-    h[3, :] = np.sqrt(3/(4*np.pi)) * y
-    h[4, :] = 1/2*np.sqrt(5/(4*np.pi)) * (3*np.square(z) - 1)
-    h[5, :] = 3*np.sqrt(5/(12*np.pi)) * x * z
-    h[6 ,:] = 3*np.sqrt(5/(12*np.pi)) * y * z
-    h[7, :] = 3/2*np.sqrt(5/(12*np.pi)) * (np.square(x) - np.square(y))
-    h[8, :] = 3*np.sqrt(5/(12*np.pi)) * x * y
+    # h = np.empty((9, x.size))
+    # h[0, :] = 1/np.sqrt(4*np.pi) * np.ones(x.size)
+    # h[1, :] = np.sqrt(3/(4*np.pi)) * z
+    # h[2, :] = np.sqrt(3/(4*np.pi)) * x
+    # h[3, :] = np.sqrt(3/(4*np.pi)) * y
+    # h[4, :] = 1/2*np.sqrt(5/(4*np.pi)) * (3*np.square(z) - 1)
+    # h[5, :] = 3*np.sqrt(5/(12*np.pi)) * x * z
+    # h[6 ,:] = 3*np.sqrt(5/(12*np.pi)) * y * z
+    # h[7, :] = 3/2*np.sqrt(5/(12*np.pi)) * (np.square(x) - np.square(y))
+    # h[8, :] = 3*np.sqrt(5/(12*np.pi)) * x * y
+    # return h * np.r_[np.pi, np.repeat(2 * np.pi/ 3, 3), np.repeat(np.pi/ 4, 5)][:, np.newaxis]
     
-    return h * np.r_[np.pi, np.repeat(2*np.pi/3, 3), np.repeat(np.pi/4, 5)][:, np.newaxis]
+    # h = np.empty((9, x.size))
+    # h[0, :] = np.ones(x.size)
+    # h[1, :] = z
+    # h[2, :] = x
+    # h[3, :] = y
+    # h[4, :] = (3 * np.square(z) - 1)
+    # h[5, :] = x * z
+    # h[6 ,:] = y * z
+    # h[7, :] = (np.square(x) - np.square(y))
+    # h[8, :] = x * y
+
+    h = np.empty((9, x.size))
+    h[0, :] = np.ones(x.size)
+    h[1, :] = y
+    h[2, :] = z
+    h[3, :] = x
+    h[4, :] = x * y
+    h[5 ,:] = y * z
+    h[6, :] = (3 * np.square(z) - 1)
+    h[7, :] = x * z
+    h[8, :] = (np.square(x) - np.square(y))
+
+    return h
