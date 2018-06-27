@@ -2,9 +2,13 @@
 # -*- coding: utf-8 -*-
 """This module contains functions that concern operations on 3DMMs. Perhaps these will be integrated into the MeshModel class later on.
 """
-import numpy as np
+# import numpy as np
 from .transform import rotMat2angle, sh9
 from sklearn.preprocessing import normalize
+
+# delte
+import autograd.numpy as np
+
 
 def generateFace(param, model, ind = None):
     """Generates vertex coordinates based on the 3DMM eigenmodel and the shape identity parameters, the shape facial expression parameters, and the similarity transform parameters.
@@ -48,16 +52,21 @@ def generateTexture(vertexCoord, texParam, model):
     """
     texCoef = texParam[:model.texEval.size]
     shCoef = texParam[model.texEval.size:].reshape(9, 3)
-    
+    # shCoef = np.reshape(texParam[model.texEval.size:], (9, 3))
+
     texture = model.texMean + np.tensordot(model.texEvec, texCoef, axes = 1)
     
     # Evaluate spherical harmonics at face shape normals
     vertexNorms = calcNormals(vertexCoord, model)
     sh = sh9(vertexNorms[:, 0], vertexNorms[:, 1], vertexNorms[:, 2])
 
-    I = np.empty((3, model.numVertices))
-    for c in range(3):
-        I[c, :] = np.dot(shCoef[:, c], sh) * texture[c, :]
+    # I = np.empty((3, model.numVertices))
+    # for c in range(3):
+    #     I[c, :] = np.dot(shCoef[:, c], sh) * texture[c, :]
+
+    I = np.dot(shCoef[:, 0], sh) * texture[0, :]
+    for c in range(1, 3):
+        I = np.vstack((I, np.dot(shCoef[:, c], sh) * texture[c, :]))
     
     return I
 
@@ -98,7 +107,11 @@ def calcNormals(vertexCoord, model):
 
     vNorm = np.array([np.sum(faceNorm[faces, :], axis = 0) for faces in model.vertex2face])
 
+    # TO DO: normalize result
     return normalize(vNorm)
+
+    # return vNorm
+
 
 def subdivide(v, f):
     """Uses Catmull-Clark subdivision to subdivide a 3DMM with quadrilateral faces, increasing the number of faces by 4 times.

@@ -89,7 +89,7 @@ def estimateCamMat(lm2D, lm3D, cam = 'orthographic'):
         A[1: 2*numLandmarks: 2, 4:] = X
         
         # Solve linear system and de-normalize
-        p8 = np.linalg.lstsq(A, x.flatten())[0].reshape(2, 4)
+        p8 = np.linalg.lstsq(A, x.flatten(), rcond=None)[0].reshape(2, 4)
         Pnorm = np.vstack((p8, np.array([0, 0, 0, 1])))
         P = Tinv.dot(Pnorm).dot(U)
         

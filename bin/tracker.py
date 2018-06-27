@@ -144,7 +144,7 @@ if __name__ == "__main__":
         # """
         # numRandomFaces =  10000
         # randomFaces = np.random.randint(0, pixelFaces.size - 300, numRandomFaces)
-        initFit = least_squares(opt.denseExpResiduals, param[m.numId:], jac = opt.denseExpJacobian, args = (idCoef, texCoef, shCoef, lm, img, m, renderObj, (1, 4, 0.004)), loss = 'linear', verbose = 0, max_nfev = 10)
+        initFit = least_squares(opt.denseExpResiduals, param[m.numId:], jac = opt.denseExpJacobian, args = (idCoef, texCoef, shCoef, lm, img, m, renderObj, (2, 4, 0.004)), loss = 'linear', verbose = 0, max_nfev = 10)
         param = np.r_[idCoef, initFit['x']]
         expCoef = param[m.numId: m.numId + m.numExp]
 

@@ -1,28 +1,67 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import numpy as np
+# import numpy as np
 from scipy.linalg import block_diag
 from scipy.interpolate import interp2d
 from ..utils.mesh import calcNormals, generateFace, generateTexture, barycentricReconstruction
 from ..utils.transform import rotMat2angle, sh9
 from .derivative import dR_dpsi, dR_dtheta, dR_dphi, dR_normal, dR_sh
 
+# delte
+import autograd.numpy as np
+from autograd.misc.flatten import flatten
+from autograd.extend import primitive, defvjp
+from autograd import value_and_grad, grad, jacobian, hessian
+
+def landmakrsFitting(param, target, model,  w = (1, 1)):
+    # Shape eigenvector coefficients
+    idCoef = param[: model.numId]
+    expCoef = param[model.numId: model.numId + model.numExp]
+
+    # Rotation Euler angles, translation vector, scaling factor
+    angles = param[model.numId + model.numExp:][:3]
+    R = rotMat2angle(angles)
+    t = np.concatenate((param[model.numId + model.numExp:][3: 5], np.array([0])))
+    s = param[model.numId + model.numExp:][5]
+
+    # The eigenmodel, before rigid transformation and scaling
+    shape = model.idMean[:, model.sourceLMInd] + np.tensordot(model.idEvec[:, model.sourceLMInd, :], idCoef, axes = 1) + np.tensordot(model.expEvec[:, model.sourceLMInd, :], expCoef, axes = 1)
+
+    # After rigid transformation and scaling
+    source = (s * np.dot(R, shape) + t[:, np.newaxis])[:2, :]
+
+    rlan = (source - target.T).flatten('F')
+    Elan = np.dot(rlan, rlan) / model.sourceLMInd.size
+
+    # Regularization cost
+    Ereg = np.sum(idCoef**2 / model.idEval) + np.sum(expCoef**2 / model.expEval)
+
+    return (w[0] * Elan + w[1] * Ereg) / 2
+
+
 def initialShapeResiuals(param, target, model, w = (1, 1)):
     # Shape eigenvector coefficients
     idCoef = param[: model.numId]
     expCoef = param[model.numId: model.numId + model.numExp]
 
-    # Insert z translation
-    param = np.r_[param[:-1], 0, param[-1]]
+    # Rotation Euler angles, translation vector, scaling factor
+    angles = param[model.numId + model.numExp:][:3]
+    R = rotMat2angle(angles)
+    t = np.concatenate((param[model.numId + model.numExp:][3: 5], np.array([0])))
+    s = param[model.numId + model.numExp:][5]
 
-    # Landmark fitting cost
-    source = generateFace(param, model, ind = model.sourceLMInd)[:2, :]
+    # The eigenmodel, before rigid transformation and scaling
+    shape = model.idMean[:, model.sourceLMInd] + np.tensordot(model.idEvec[:, model.sourceLMInd, :], idCoef, axes = 1) + np.tensordot(model.expEvec[:, model.sourceLMInd, :], expCoef, axes = 1)
+
+    # After rigid transformation and scaling
+    source = (s * np.dot(R, shape) + t[:, np.newaxis])[:2, :]
+
 
     w0 = (w[0] / model.sourceLMInd.size)**(1/2)
     w1 = w[1]**(1/2)
 
     # Reg cost not correct
-    return np.r_[w0 * (source - target.T).flatten('F'), w1 * idCoef ** 2 / model.idEval, w1 * expCoef ** 2 / model.expEval]
+    return np.concatenate((w0 * (source - target.T).flatten('F'), w1 * idCoef ** 2 / model.idEval, w1 * expCoef ** 2 / model.expEval))
 
 def initialShapeJacobians(param, target, model, w = (1, 1)):
     # Shape eigenvector coefficients
@@ -120,6 +159,34 @@ def expJacobians(param, idCoef, target, model, w = (1, 1)):
 
 
 
+
+def textureCost(texCoef, img, vertexCoord, model, renderObj, w = (1, 1), randomFaces = None):
+    vertexColor = model.texMean + np.tensordot(model.texEvec, texCoef, axes = 1)
+
+    renderObj.updateVertexBuffer(np.r_[vertexCoord.T, vertexColor.T])
+    renderObj.resetFramebufferObject()
+    renderObj.render()
+    rendering, pixelCoord = renderObj.grabRendering(return_info = True)[:2]
+    
+    if randomFaces is not None:
+        numPixels = randomFaces.size
+        pixelCoord = pixelCoord[randomFaces, :]
+    else:
+        numPixels = pixelCoord.shape[0]
+    
+    rendering = rendering[pixelCoord[:, 0], pixelCoord[:, 1]]
+    img = img[pixelCoord[:, 0], pixelCoord[:, 1]]
+
+    # Color matching cost
+    r = (rendering - img).flatten()
+    Ecol = np.dot(r, r) / (numPixels * 3)
+
+    # Statistical regularization
+    Ereg = np.sum(texCoef ** 2 / model.texEval)
+
+    return w[0] * Ecol + w[1] * Ereg
+
+
 def textureResiduals(texCoef, img, vertexCoord, model, renderObj, w = (1, 1), randomFaces = None):
     vertexColor = model.texMean + np.tensordot(model.texEvec, texCoef, axes = 1)
 
@@ -137,7 +204,7 @@ def textureResiduals(texCoef, img, vertexCoord, model, renderObj, w = (1, 1), ra
     rendering = rendering[pixelCoord[:, 0], pixelCoord[:, 1]]
     img = img[pixelCoord[:, 0], pixelCoord[:, 1]]
 
-    w0 = (w[0] / numPixels)**(1/2)
+    w0 = (w[0] / (numPixels * 3))**(1/2)
     w1 = w[1]**(1/2)
 
     return np.r_[w0 * (rendering - img).flatten('F'), w1 * texCoef ** 2 / model.texEval]
@@ -169,7 +236,7 @@ def textureJacobian(texCoef, img, vertexCoord, model, renderObj, w = (1, 1), ran
     for c in range(3):
         J_texCoef[c * numPixels: (c + 1) * numPixels, :] = barycentricReconstruction(model.texEvec[c].T, pixelFaces, pixelBarycentricCoords, model.face)
 
-    w0 = (w[0] / numPixels)**(1/2)
+    w0 = (w[0] / (numPixels * 3))**(1/2)
     w1 = w[1]**(1/2)
 
     return np.r_[w0 * J_texCoef, w1 * np.diag(texCoef / model.texEval)]
@@ -225,13 +292,20 @@ def textureLightingJacobian(texParam, img, vertexCoord, sh, model, renderObj, w 
 
     pixelVertices = model.face[pixelFaces, :]
 
-    pixelTexture = barycentricReconstruction(vertexColor, pixelFaces, pixelBarycentricCoords, model.face)
-    pixelSHBasis = barycentricReconstruction(sh, pixelFaces, pixelBarycentricCoords, model.face)
-    J_shCoef = np.einsum('ij,ik->jik', pixelTexture, pixelSHBasis)
+    # pixelTexture = barycentricReconstruction(vertexColor, pixelFaces, pixelBarycentricCoords, model.face)
+    # pixelSHBasis = barycentricReconstruction(sh, pixelFaces, pixelBarycentricCoords, model.face)
+    # J_shCoef = np.einsum('ij,ik->jik', pixelTexture, pixelSHBasis)
+
+    # xxx = np.zeros((pixelVertices.size, 27))
+    # for c in range(3):
+    #     xxx[c*numPixels: (c+1)*numPixels, c * 9 : (c+1) * 9] = barycentricReconstruction(sh * vertexColor[c, :], pixelFaces, pixelBarycentricCoords, model.face)
 
     xxx = np.zeros((pixelVertices.size, 27))
     for c in range(3):
-        xxx[c*numPixels: (c+1)*numPixels, c * 9 : (c+1) * 9] = barycentricReconstruction(sh * vertexColor[c, :], pixelFaces, pixelBarycentricCoords, model.face)
+        val = barycentricReconstruction(vertexColor[c, :] * sh, pixelFaces, pixelBarycentricCoords, model.face)
+        for i in range(9):
+            xxx[c*numPixels: (c+1)*numPixels, c + i * 3] = val[:, i]
+
 
     # print(np.array_equal(block_diag(*J_shCoef).shape, xxx))
     # print("##########")
@@ -259,33 +333,117 @@ def textureLightingJacobian(texParam, img, vertexCoord, sh, model, renderObj, w 
 
 
 
+
 def lightingResiduals(texParam, texCoef, img, vertexCoord, sh, model, renderObj, randomFaces = None):
     """
     Energy formulation for fitting texture and spherical harmonic lighting coefficients
     """
-    shCoef = texParam.reshape(9, 3)
+    # shCoef = texParam.reshape(9, 3)
 
-    texture = generateTexture(vertexCoord, np.r_[texCoef, shCoef.flatten()], model)
+    texture = generateTexture(vertexCoord, np.concatenate((texCoef, texParam)), model)
 
-    renderObj.updateVertexBuffer(np.r_[vertexCoord.T, texture.T])
+    renderObj.updateVertexBuffer(np.concatenate((vertexCoord.T, model.texMean.T)))
     renderObj.resetFramebufferObject()
     renderObj.render()
-    rendering, pixelCoord = renderObj.grabRendering(return_info = True)[:2]
-    
+    # rendering, pixelCoord = renderObj.grabRendering(return_info = True)[:2]
+
+    # CPU rendering
+    rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
+    reconstruction = barycentricReconstruction(texture, pixelFaces, pixelBarycentricCoords, model.face)
+    # reconstruction = np.zeros(rendering.shape)
+    # reconstruction[pixelCoord[:, 0], pixelCoord[:, 1], :] = imgReconstruction
+
     if randomFaces is not None:
         numPixels = randomFaces.size
         pixelCoord = pixelCoord[randomFaces, :]
     else:
         numPixels = pixelCoord.shape[0]
-    
+
+    img = img[pixelCoord[:, 0], pixelCoord[:, 1]]
+
+    # r = (reconstruction - img).flatten()
+    # Ecol = np.dot(r, r) / (numPixels * 3)
+
+    # return Ecol
+    return (reconstruction - img).flatten('F')
+
+def lightingGrad(texParam, texCoef, img, vertexCoord, sh, model, renderObj, randomFaces = None):
+    shCoef = texParam.reshape(9, 3)
+
+    vertexColor = model.texMean + np.tensordot(model.texEvec, texCoef, axes = 1)
+    texture = generateTexture(vertexCoord, np.r_[texCoef, shCoef.flatten()], model)
+
+    renderObj.updateVertexBuffer(np.r_[vertexCoord.T, texture.T])
+    renderObj.resetFramebufferObject()
+    renderObj.render()
+    rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
+
+    if randomFaces is not None:
+        numPixels = randomFaces.size
+        pixelFaces = pixelFaces[randomFaces]
+        pixelBarycentricCoords = pixelBarycentricCoords[randomFaces, :]
+    else:
+        numPixels = pixelFaces.size
+
+    pixelVertices = model.face[pixelFaces, :]
+
+    # pixelTexture = barycentricReconstruction(vertexColor, pixelFaces, pixelBarycentricCoords, model.face)
+    # pixelSHBasis = barycentricReconstruction(sh, pixelFaces, pixelBarycentricCoords, model.face)
+    # J_shCoef = np.einsum('ij,ik->jik', pixelTexture, pixelSHBasis)
+    # J_shCoef = block_diag(*J_shCoef)
+
+    # xxx = np.zeros((pixelVertices.size, 27))
+    # for c in range(1):
+    #     xxx[c*numPixels: (c+1)*numPixels, c * 9 : (c+1) * 9] = barycentricReconstruction(vertexColor[c, :] * sh, pixelFaces, pixelBarycentricCoords, model.face)
+
+    xxx = np.zeros((pixelVertices.size, 27))
+    for c in range(3):
+        val = barycentricReconstruction(vertexColor[c, :] * sh, pixelFaces, pixelBarycentricCoords, model.face)
+        for i in range(9):
+            xxx[c*numPixels: (c+1)*numPixels, c + i * 3] = val[:, i]
+
     rendering = rendering[pixelCoord[:, 0], pixelCoord[:, 1]]
     img = img[pixelCoord[:, 0], pixelCoord[:, 1]]
 
-    r = (rendering - img).flatten()
-    Ecol = np.dot(r, r) / pixelCoord.shape[0]
+    rCol = (rendering.T - img.T).flatten()
 
-    # return Ecol
-    return (rendering - img).flatten('F')
+    return 2 / (numPixels * 3) * np.dot(xxx.T, rCol)
+
+
+# def lightingResiduals(texParam, texCoef, img, vertexCoord, sh, model, renderObj, randomFaces = None):
+#     """
+#     Energy formulation for fitting texture and spherical harmonic lighting coefficients
+#     """
+#     # shCoef = texParam.reshape(9, 3)
+
+#     texture = generateTexture(vertexCoord, np.r_[texCoef, texParam], model)
+
+#     renderObj.updateVertexBuffer(np.r_[vertexCoord.T, model.texMean.T])
+#     renderObj.resetFramebufferObject()
+#     renderObj.render()
+#     # rendering, pixelCoord = renderObj.grabRendering(return_info = True)[:2]
+
+#     # CPU rendering
+#     rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
+#     imgReconstruction = barycentricReconstruction(texture, pixelFaces, pixelBarycentricCoords, model.face)
+#     reconstruction = np.zeros(rendering.shape)
+#     reconstruction[pixelCoord[:, 0], pixelCoord[:, 1], :] = imgReconstruction
+
+#     if randomFaces is not None:
+#         numPixels = randomFaces.size
+#         pixelCoord = pixelCoord[randomFaces, :]
+#     else:
+#         numPixels = pixelCoord.shape[0]
+
+#     reconstruction = reconstruction[pixelCoord[:, 0], pixelCoord[:, 1]]
+#     img = img[pixelCoord[:, 0], pixelCoord[:, 1]]
+
+#     r = (reconstruction - img).flatten()
+#     Ecol = np.dot(r, r) / pixelCoord.shape[0]
+
+#     # return Ecol
+#     return (reconstruction - img).flatten('F')
+
 
 def lightingJacobian(texParam, texCoef, img, vertexCoord, sh, model, renderObj, randomFaces = None):
     shCoef = texParam.reshape(9, 3)
@@ -307,17 +465,17 @@ def lightingJacobian(texParam, texCoef, img, vertexCoord, sh, model, renderObj, 
 
     pixelVertices = model.face[pixelFaces, :]
 
-    pixelTexture = barycentricReconstruction(vertexColor, pixelFaces, pixelBarycentricCoords, model.face)
-    pixelSHBasis = barycentricReconstruction(sh, pixelFaces, pixelBarycentricCoords, model.face)
-    J_shCoef = np.einsum('ij,ik->jik', pixelTexture, pixelSHBasis)
-    J_shCoef = block_diag(*J_shCoef)
+    # pixelTexture = barycentricReconstruction(vertexColor, pixelFaces, pixelBarycentricCoords, model.face)
+    # pixelSHBasis = barycentricReconstruction(sh, pixelFaces, pixelBarycentricCoords, model.face)
+    # J_shCoef = np.einsum('ij,ik->jik', pixelTexture, pixelSHBasis)
+    # J_shCoef = block_diag(*J_shCoef)
 
     xxx = np.zeros((pixelVertices.size, 27))
     for c in range(3):
-        xxx[c*numPixels: (c+1)*numPixels, c * 9 : (c+1) * 9] = barycentricReconstruction(sh * vertexColor[c, :], pixelFaces, pixelBarycentricCoords, model.face)
+        val = barycentricReconstruction(vertexColor[c, :] * sh, pixelFaces, pixelBarycentricCoords, model.face)
+        for i in range(9):
+            xxx[c*numPixels: (c+1)*numPixels, c + i * 3] = val[:, i]
 
-    # np.savetxt('/home/karim/Desktop/arr2.csv', J_shCoef, delimiter=',')
-    # print(xxx.shape)
     return xxx
 
 
@@ -880,6 +1038,112 @@ def denseShJacobian(param, img, shCoef, target, model, renderObj, w = (1, 1, 1, 
 
 
 
+def ttt(param, model):
+    idCoef = param[: model.numId]
+    expCoef = param[model.numId: model.numId + model.numExp]
+    
+    # Rotation Euler angles, translation vector, scaling factor
+    R = rotMat2angle(param[model.numId + model.numExp:][:3])
+    t = param[model.numId + model.numExp:][3: 6]
+    s = param[model.numId + model.numExp:][6]
+
+    # The eigenmodel, before rigid transformation and scaling
+    model = model.idMean + np.tensordot(model.idEvec, idCoef, axes = 1) + np.tensordot(model.expEvec, expCoef, axes = 1)
+
+    # After rigid transformation and scaling
+    vertexCoord = s * np.dot(R, model) + t[:, np.newaxis]
+
+    return vertexCoord
+
+@primitive
+def GPURendering(param, model, renderObj):
+    idCoef = param[: model.numId]
+    expCoef = param[model.numId: model.numId + model.numExp]
+    
+    # Rotation Euler angles, translation vector, scaling factor
+    R = rotMat2angle(param[model.numId + model.numExp:][:3])
+    t = param[model.numId + model.numExp:][3: 6]
+    s = param[model.numId + model.numExp:][6]
+
+    # The eigenmodel, before rigid transformation and scaling
+    model = model.idMean + np.tensordot(model.idEvec, idCoef, axes = 1) + np.tensordot(model.expEvec, expCoef, axes = 1)
+
+    # After rigid transformation and scaling
+    vertexCoord = s * np.dot(R, model) + t[:, np.newaxis]
+
+    renderObj.updateVertexBuffer(np.r_[vertexCoord.T, model.texMean.T])
+    renderObj.resetFramebufferObject()
+    renderObj.render()
+
+    return renderObj.grabRendering(return_info = True)
+
+def GPURendering_vjp(ans, param, model, renderObj):
+    return lambda g: jacobian(ttt)(model)
+
+
+# defvjp(GPURendering,
+       # lambda ans, A, model, renderObj:
+       # lambda g: g)
+defvjp(GPURendering, GPURendering_vjp)
+
+
+# def denseJointResiduals(param, img, target, model, renderObj, w = (1, 1, 1, 1), randomFacesNum = None):
+#     # Shape eigenvector coefficients
+#     texCoef = param[: model.numTex]
+#     shCoef = param[model.numTex : model.numTex + 27].reshape(9, 3)
+#     idCoef = param[model.numTex + 27 : model.numTex + 27 + model.numId]
+#     expCoef = param[model.numTex + 27 + model.numId: model.numTex + 27 + model.numId + model.numExp]
+
+#     # Insert z translation
+#     shape_param = np.concatenate((param[model.numTex + 27 :-1], np.array([0, param[-1]])))
+
+#     # Generate face shape
+#     vertexCoord = generateFace(shape_param, model)
+
+#     # Generate the texture at the 3DMM vertices from the learned texture coefficients
+#     texture = generateTexture(vertexCoord, np.concatenate((texCoef, shCoef.flatten())), model)
+
+#     # renderObj.updateVertexBuffer(np.r_[vertexCoord.T, model.texMean.T])
+#     # renderObj.resetFramebufferObject()
+#     # renderObj.render()
+
+#     # CPU rendering
+#     rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = GPURendering(shape_param, model, renderObj)
+#     reconstruction = barycentricReconstruction(texture, pixelFaces, pixelBarycentricCoords, model.face)
+
+#     if randomFacesNum is not None:
+#         randomFaces = np.random.randint(0, pixelFaces.size, randomFacesNum)
+#         numPixels = randomFaces.size
+#         pixelCoord = pixelCoord[randomFaces, :]
+#     else:
+#         numPixels = pixelCoord.shape[0]
+    
+#     img = img[pixelCoord[:, 0], pixelCoord[:, 1]]
+
+#     wcol = (w[0] / numPixels)**(1/2)
+#     wlan = (w[1] / model.sourceLMInd.size)**(1/2)
+#     wreg_color = w[2]**(1/2)
+#     wreg_shape = w[3]**(1/2)
+
+#     # landmakrs error
+#     source = generateFace(shape_param, model, ind = model.sourceLMInd)[:2, :]
+
+
+#     rCol = (reconstruction - img).flatten('F')
+#     ECol = np.dot(rCol, rCol) / pixelCoord.shape[0]
+
+#     # After rigid transformation and scaling
+#     rlan = (source - target.T).flatten('F')
+#     Elan = np.dot(rlan, rlan) / model.sourceLMInd.size
+
+#     # Regularization cost
+#     Ereg = wreg_shape * np.sum(idCoef**2 / model.idEval) + wreg_shape * np.sum(expCoef**2 / model.expEval) + wreg_color * np.sum(texCoef**2 / model.texEval)
+
+#     return (wcol * ECol + wlan * Elan + Ereg) / 2
+
+#     # return np.r_[wcol * (rendering - img).flatten('F')]
+
+
 
 def denseJointResiduals(param, img, target, model, renderObj, w = (1, 1, 1, 1), randomFacesNum = None):
     # Shape eigenvector coefficients
@@ -912,7 +1176,7 @@ def denseJointResiduals(param, img, target, model, renderObj, w = (1, 1, 1, 1), 
     rendering = rendering[pixelCoord[:, 0], pixelCoord[:, 1]]
     img = img[pixelCoord[:, 0], pixelCoord[:, 1]]
 
-    wcol = (w[0] / numPixels)**(1/2)
+    wcol = (w[0] / (numPixels * 3))**(1/2)
     wlan = (w[1] / model.sourceLMInd.size)**(1/2)
     wreg_color = w[2]**(1/2)
     wreg_shape = w[3]**(1/2)
@@ -1007,10 +1271,17 @@ def denseJointJacobian(param, img, target, model, renderObj, w = (1, 1, 1, 1), r
         J_texCoef[c * numPixels: (c + 1) * numPixels, :] = pixelSHLighting * pixelTexEvecsCombo[np.newaxis, ...]
 
     # Sh derivative
-    pixelTexture = barycentricReconstruction(vertexColor, pixelFaces, pixelBarycentricCoords, model.face)
-    pixelSHBasis = barycentricReconstruction(sh, pixelFaces, pixelBarycentricCoords, model.face)
-    J_shCoef = np.einsum('ij,ik->jik', pixelTexture, pixelSHBasis)
-    J_shCoef = block_diag(*J_shCoef)
+    # pixelTexture = barycentricReconstruction(vertexColor, pixelFaces, pixelBarycentricCoords, model.face)
+    # pixelSHBasis = barycentricReconstruction(sh, pixelFaces, pixelBarycentricCoords, model.face)
+    # J_shCoef = np.einsum('ij,ik->jik', pixelTexture, pixelSHBasis)
+    # J_shCoef = block_diag(*J_shCoef)
+
+    J_shCoef = np.zeros((numPixels * 3, 27))
+    for c in range(3):
+        val = barycentricReconstruction(vertexColor[c, :] * sh, pixelFaces, pixelBarycentricCoords, model.face)
+        for i in range(9):
+            J_shCoef[c*numPixels: (c+1)*numPixels, c + i * 3] = val[:, i]
+
 
     # # Shape derivative
     # drV_dt = np.tile(np.eye(3), [model.numVertices, 1])
@@ -1060,7 +1331,7 @@ def denseJointJacobian(param, img, target, model, renderObj, w = (1, 1, 1, 1), r
 
 
     # weighting
-    wcol = (w[0] / numPixels)**(1/2)
+    wcol = (w[0] / (numPixels * 3))**(1/2)
     wlan = (w[1] / model.sourceLMInd.size)**(1/2)
     wreg_color = w[2]**(1/2)
     wreg_shape = w[3]**(1/2)

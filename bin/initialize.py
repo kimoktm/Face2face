@@ -22,6 +22,10 @@ import time
 import dlib
 import cv2
 
+# delete
+from autograd import value_and_grad, grad, jacobian, hessian
+import scipy.misc
+
 
 def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=640):
     imgScale = 1
@@ -86,7 +90,7 @@ if __name__ == "__main__":
         Set filenames, read landmarks, load source video frames
         """
         # Frames from the source video
-        fNameImgOrig = 'orig/' + fName + '_rendered.png'
+        fNameImgOrig = 'obama/' + fName + '_rendered.png'
 
         # Load the source video frame and convert to 64-bit float
         b,g,r = cv2.split(cv2.imread(fNameImgOrig))
@@ -112,7 +116,7 @@ if __name__ == "__main__":
 
 
         vertexCoords = generateFace(param, m)
-        writePly("../mesh.ply", vertexCoords, m.face, m.texMean, m.sourceLMInd)
+        # writePly("../mesh.ply", vertexCoords, m.face, m.texMean, m.sourceLMInd)
 
         # Estimate the camera projection matrix from the landmark correspondences
         camMat = estimateCamMat(lm, lm3D, cam)
@@ -124,15 +128,43 @@ if __name__ == "__main__":
         param = np.r_[idCoef, expCoef, angles, t, s]
 
 
+        # jac_test = jacobian(opt.initialShapeResiuals)
+        # jacc = jac_test(param, lm, m , (wLan, wReg))
+        # print(jacc)
+        # print("-----------------------------------")
+        # print(opt.initialShapeJacobians(param,lm,m, (wLan, wReg)))        
+        # print(hass_test(param, lm, m, (wLan, wReg)))
+        # break
+
+        start = time.time()
+
         # Initial optimization of shape parameters with similarity transform parameters
-        # initFit = least_squares(opt.initialShapeResiuals, param, jac = opt.initialShapeJacobians, args = (lm, m, (wLan, wReg)), loss = 'linear', verbose = 1)
+        # initFit = minimize(value_and_grad(opt.landmakrsFitting), param, args = (lm, m, (wLan, wReg)), method='BFGS', jac=True, options={'disp': True})
+        # param = initFit.x
+
+        # initFit = minimize(value_and_grad(opt.landmakrsFitting), param, jac = True, hess = hessian(opt.landmakrsFitting), args = (lm, m, (wLan, wReg)), method='BFGS', options={'disp': True})
+        # param = initFit.x
+
+        # initFit = least_squares(opt.landmakrsFitting, param, jac=jacobian(opt.landmakrsFitting), args = (lm, m, (wLan, wReg)), loss = 'linear',verbose = 2, max_nfev = 1000)
         # param = initFit['x']
+
+        # initFit = least_squares(opt.initialShapeResiuals, param, jac=jacobian(opt.initialShapeResiuals), args = (lm, m, (wLan, wReg)), loss = 'linear',verbose = 2, max_nfev = 10)
+        # param = initFit['x']
+
+        # Initial optimization of shape parameters with similarity transform parameters
+        # initFit = least_squares(opt.initialShapeResiuals, param, jac = opt.initialShapeJacobians, args = (lm, m, (wLan, wReg)), loss = 'linear', verbose = 2)
+        # param = initFit['x']
+
+        elapsed = time.time() - start
+        print(time.strftime("%H:%M:%S", time.gmtime(elapsed)))
+        # break
 
         idCoef = param[:m.numId]
         expCoef = param[m.numId: m.numId+m.numExp]
         
         # Generate 3DMM vertices from shape and similarity transform parameters
         vertexCoords = generateFace(np.r_[param[:-1], 0, param[-1]], m)
+
 
         # Rendering of initial 3DMM shape with mean texture model
         texture = m.texMean
@@ -142,7 +174,7 @@ if __name__ == "__main__":
 
         # Grab the OpenGL rendering from the video card
         rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
-        
+
         # Plot the 3DMM landmarks with the OpenPose landmarks over the image
         plt.figure("fitting")
         plt.imshow(img)
@@ -152,26 +184,43 @@ if __name__ == "__main__":
         # Plot the OpenGL rendering
         plt.figure("rendering")
         plt.imshow(rendering)
+        # plt.show()
+        # break
 
-
-        # """
-        # Get initial texture parameter guess
-        # """
+        # # CPU rendering
+        # # Using the barycentric parameters from the rendering, we can reconstruct the image with the 3DMM texture model by taking barycentric combinations of the 3DMM RGB values defined at the vertices
+        # imgReconstruction = barycentricReconstruction(texture, pixelFaces, pixelBarycentricCoords, m.face)
         
-        # # Set the number of faces for stochastic optimization
-        numRandomFaces = 10000
-        # start = time.time()
+        # # Put values from the reconstruction into a (height, width, 3) array for plotting
+        # reconstruction = np.zeros(rendering.shape)
+        # reconstruction[pixelCoord[:, 0], pixelCoord[:, 1], :] = imgReconstruction
 
-        # wReg = 0.00005
+        # print(rendering.shape)
+        # print(imgReconstruction[:,0])
+        # print(reconstruction[:10,0])
+        # print("#######################")
+
+
+        # # Plot the difference of the reconstruction with the rendering to see that they are very close-- the output values should be close to 0
+        # plt.figure()
+        # plt.imshow(np.fabs(reconstruction - rendering))
+        # plt.show()
+
+
+        # # """
+        # # Get initial texture parameter guess
+        # # """
+        
+        # # # Set the number of faces for stochastic optimization
+        # numRandomFaces = 10000
+
+        # wReg = 0.000005
 
         # # Do some cycles of nonlinear least squares iterations, using a new set of random faces each time for the optimization objective
         # for i in range(1):
         #     randomFaces = np.random.randint(0, pixelFaces.size, numRandomFaces)
         #     initTex = least_squares(opt.textureResiduals, texCoef, jac = opt.textureJacobian, args = (img, vertexCoords, m, renderObj, (wCol, wReg), randomFaces), loss = 'soft_l1', verbose = 1)
         #     texCoef = initTex['x']
-
-        # elapsed = time.time() - start
-        # print(time.strftime("%H:%M:%S", time.gmtime(elapsed)))
 
         # # Generate the texture at the 3DMM vertices from the learned texture coefficients
         # texture = m.texMean + np.tensordot(m.texEvec, texCoef, axes = 1)
@@ -186,7 +235,7 @@ if __name__ == "__main__":
 
         # plt.figure("Texture")
         # plt.imshow(rendering)
-        # # plt.show()
+        # plt.show()
 
 
         # # """
@@ -258,146 +307,22 @@ if __name__ == "__main__":
         # plt.show()
 
 
-        # """
-        # Optimization over all dense shape
-        # """
-        param = np.r_[texCoef, param]
-
-        # Jointly optimize the texture and spherical harmonic lighting coefficients
-        initFit = least_squares(opt.denseAllResiduals, param, jac = opt.denseAllJacobian, args = (img, lm, m, renderObj, (1, 6, 0.0002, 0.08)), loss = 'linear', verbose = 2)
-        param_all = initFit['x']
-        texCoef = param_all[:m.numTex]
-        param = param_all[m.numTex:]
-
-        # Generate 3DMM vertices from shape and similarity transform parameters
-        vertexCoords = generateFace(np.r_[param[:-1], 0, param[-1]], m)
-
-        # Generate the texture at the 3DMM vertices from the learned texture coefficients
-        texture = m.texMean + np.tensordot(m.texEvec, texCoef, axes = 1)
-
-        # Render the 3DMM
-        renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
-        renderObj.resetFramebufferObject()
-        renderObj.render()
-        rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
-
-        plt.figure("Dense Shape 1")
-        plt.imshow(rendering)
-
-        writePly("../mesh_step1.ply", vertexCoords, m.face, texture)
-
-        # Plot the 3DMM landmarks with the OpenPose landmarks over the image
-        # plt.figure("Desne fitting")
-        # plt.imshow(img)
-        # plt.scatter(vertexCoords[0, m.sourceLMInd], vertexCoords[1, m.sourceLMInd], s = 3, c = 'r')
-        # plt.scatter(lm[:, 0], lm[:, 1], s = 2, c = 'g')
-        # plt.show()
-
-
-        """
-        Get initial spherical harmonic lighting parameter guess
-        """
-        # Calculate normals at each vertex in the 3DMM
-        vertexNorms = calcNormals(vertexCoords, m)
-
-        # Evaluate spherical harmonics at face shape normals. The result is a (numVertices, 9) array where each column is a spherical harmonic basis for the 3DMM.
-        B = sh9(vertexNorms[:, 0], vertexNorms[:, 1], vertexNorms[:, 2])
-        
-        # Get the pixel RGB values of the original image where the 3DMM face is rendered
-        imgMasked = img[pixelCoord[:, 0], pixelCoord[:, 1]]
-        
-        # Initialize an array to store the barycentric reconstruction of the nine spherical harmonics. The first dimension indicates the color (RGB).
-        I = np.empty((3, pixelFaces.size, 9))
-        
-        # Initialize an array to store the spherical harmonic lighting coefficients. There are nine coefficients per color channel.
-        shCoef = np.empty((9, 3))
-        
-        # Loop through each color channel
-        for c in range(3):
-            # 
-            I[c, ...] = barycentricReconstruction(B * texture[c, :], pixelFaces, pixelBarycentricCoords, m.face)
-
-            # Make an initial guess of the spherical harmonic lighting coefficients with least squares. We are solving Ax = b, where A is the (numFaces, 9) array of the barycentric reconstruction of the spherical harmonic bases, x is the (9,) vector of coefficients, and b is the (numFaces,) vector of the pixels from the original image where the 3DMM is defined.
-#            shCoef[:, c] = nnls(I[c, ...], imgMasked[:, c])[0]
-            shCoef[:, c] = lsq_linear(I[c, ...], imgMasked[:, c]).x
-
-        # Concatenate the texture coefficients with the spherical harmonic coefficients and use a helper function to generate the RGB values at each vertex on the 3DMM
-        texParam = np.r_[texCoef, shCoef.flatten()]
-        textureWithLighting = generateTexture(vertexCoords, texParam, m)
-        
-        # Render the 3DMM with the initial guesses for texture and lighting
-        renderObj.updateVertexBuffer(np.r_[vertexCoords.T, textureWithLighting.T])
-        renderObj.resetFramebufferObject()
-        renderObj.render()
-        rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
-
-        plt.figure("SH")
-        plt.imshow(rendering)
-
-
-
-        # """
-        # Optimization over all dense shape with SH fixed
-        # """
-        param = np.r_[texCoef, param]
-
-        # Jointly optimize the texture and spherical harmonic lighting coefficients
-        initFit = least_squares(opt.denseShResiduals, param, jac = opt.denseShJacobian, args = (img, shCoef.flatten(), lm, m, renderObj, (1, 6, 0.0002, 0.08)), loss = 'linear', verbose = 2)
-        param_all = initFit['x']
-        texCoef = param_all[:m.numTex]
-        param = param_all[m.numTex:]
-
-        # Generate 3DMM vertices from shape and similarity transform parameters
-        vertexCoords = generateFace(np.r_[param[:-1], 0, param[-1]], m)
-
-        # Generate the texture at the 3DMM vertices from the learned texture coefficients
-        texParam = np.r_[texCoef, shCoef.flatten()]
-        texture = generateTexture(vertexCoords, texParam, m)
-
-        # Render the 3DMM
-        renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
-        renderObj.resetFramebufferObject()
-        renderObj.render()
-        rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
-
-        plt.figure("Dense Shape 2")
-        plt.imshow(rendering)
-
-        writePly("../mesh_step2.ply", vertexCoords, m.face, texture)
-        np.save("parameters", np.r_[texCoef, shCoef.flatten(), param])
-
-        # Plot the 3DMM landmarks with the OpenPose landmarks over the image
-        plt.figure("Desne fitting 2")
-        plt.imshow(img)
-        plt.scatter(vertexCoords[0, m.sourceLMInd], vertexCoords[1, m.sourceLMInd], s = 3, c = 'r')
-        plt.scatter(lm[:, 0], lm[:, 1], s = 2, c = 'g')
-        plt.show()
-
-
-        # """
-        # Optimization over shape, texture, and lighting
-        # """
-        # # shCoef = np.zeros((9, 3))
-        # # shCoef[0, 0] = 0.5
-        # # shCoef[0, 1] = 0.5
-        # # shCoef[0, 2] = 0.5
-        # allParam = np.r_[texCoef, shCoef.flatten(), param]
+        # # """
+        # # Optimization over all dense shape
+        # # """
+        # param = np.r_[texCoef, param]
 
         # # Jointly optimize the texture and spherical harmonic lighting coefficients
-        # randomFacesNum = 10000
-        # initShapeTexLight = least_squares(opt.denseJointResiduals, allParam, jac = opt.denseJointJacobian, args = (img, lm, m, renderObj, (1, 6, 0.0002, 0.08), randomFacesNum), loss = 'linear', verbose = 2)
-        # allParam = initShapeTexLight['x']
-
-        # print(texCoef.size + shCoef.size)
-        # texParam3 = allParam[:texCoef.size + shCoef.size]
-        # shapeParam3 = allParam[texCoef.size + shCoef.size:]
+        # initFit = least_squares(opt.denseAllResiduals, param, jac = opt.denseAllJacobian, args = (img, lm, m, renderObj, (1, 6, 0.0002, 0.08)), loss = 'linear', verbose = 2)
+        # param_all = initFit['x']
+        # texCoef = param_all[:m.numTex]
+        # param = param_all[m.numTex:]
 
         # # Generate 3DMM vertices from shape and similarity transform parameters
-        # vertexCoords = generateFace(np.r_[shapeParam3[:-1], 0, shapeParam3[-1]], m)
+        # vertexCoords = generateFace(np.r_[param[:-1], 0, param[-1]], m)
 
-        # # Generate 3DMM texture form vertex & sh parameters
-        # texture = generateTexture(vertexCoords, texParam3, m)
-        # # texture = m.texMean + np.tensordot(m.texEvec, texCoef, axes = 1)
+        # # Generate the texture at the 3DMM vertices from the learned texture coefficients
+        # texture = m.texMean + np.tensordot(m.texEvec, texCoef, axes = 1)
 
         # # Render the 3DMM
         # renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
@@ -405,19 +330,144 @@ if __name__ == "__main__":
         # renderObj.render()
         # rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
 
-        # print(texParam3[texCoef.size:].reshape(9, 3))
-
-        # plt.figure("Shape & Texture & SH")
+        # plt.figure("Dense Shape 1")
         # plt.imshow(rendering)
 
+        # writePly("../mesh_step1.ply", vertexCoords, m.face, texture)
+
         # # Plot the 3DMM landmarks with the OpenPose landmarks over the image
-        # plt.figure("Desne fitting")
+        # # plt.figure("Desne fitting")
+        # # plt.imshow(img)
+        # # plt.scatter(vertexCoords[0, m.sourceLMInd], vertexCoords[1, m.sourceLMInd], s = 3, c = 'r')
+        # # plt.scatter(lm[:, 0], lm[:, 1], s = 2, c = 'g')
+        # # plt.show()
+
+
+#         """
+#         Get initial spherical harmonic lighting parameter guess
+#         """
+#         # Calculate normals at each vertex in the 3DMM
+#         vertexNorms = calcNormals(vertexCoords, m)
+
+#         # Evaluate spherical harmonics at face shape normals. The result is a (numVertices, 9) array where each column is a spherical harmonic basis for the 3DMM.
+#         B = sh9(vertexNorms[:, 0], vertexNorms[:, 1], vertexNorms[:, 2])
+        
+#         # Get the pixel RGB values of the original image where the 3DMM face is rendered
+#         imgMasked = img[pixelCoord[:, 0], pixelCoord[:, 1]]
+        
+#         # Initialize an array to store the barycentric reconstruction of the nine spherical harmonics. The first dimension indicates the color (RGB).
+#         I = np.empty((3, pixelFaces.size, 9))
+        
+#         # Initialize an array to store the spherical harmonic lighting coefficients. There are nine coefficients per color channel.
+#         shCoef = np.empty((9, 3))
+        
+#         # Loop through each color channel
+#         for c in range(3):
+#             # 
+#             I[c, ...] = barycentricReconstruction(B * texture[c, :], pixelFaces, pixelBarycentricCoords, m.face)
+
+#             # Make an initial guess of the spherical harmonic lighting coefficients with least squares. We are solving Ax = b, where A is the (numFaces, 9) array of the barycentric reconstruction of the spherical harmonic bases, x is the (9,) vector of coefficients, and b is the (numFaces,) vector of the pixels from the original image where the 3DMM is defined.
+# #            shCoef[:, c] = nnls(I[c, ...], imgMasked[:, c])[0]
+#             shCoef[:, c] = lsq_linear(I[c, ...], imgMasked[:, c]).x
+
+#         # Concatenate the texture coefficients with the spherical harmonic coefficients and use a helper function to generate the RGB values at each vertex on the 3DMM
+#         texParam = np.r_[texCoef, shCoef.flatten()]
+#         textureWithLighting = generateTexture(vertexCoords, texParam, m)
+        
+#         # Render the 3DMM with the initial guesses for texture and lighting
+#         renderObj.updateVertexBuffer(np.r_[vertexCoords.T, textureWithLighting.T])
+#         renderObj.resetFramebufferObject()
+#         renderObj.render()
+#         rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
+
+#         plt.figure("SH")
+#         plt.imshow(rendering)
+
+
+
+        # # """
+        # # Optimization over all dense shape with SH fixed
+        # # """
+        # param = np.r_[texCoef, param]
+
+        # # Jointly optimize the texture and spherical harmonic lighting coefficients
+        # initFit = least_squares(opt.denseShResiduals, param, jac = opt.denseShJacobian, args = (img, shCoef.flatten(), lm, m, renderObj, (1, 6, 0.0002, 0.08)), loss = 'linear', verbose = 2)
+        # param_all = initFit['x']
+        # texCoef = param_all[:m.numTex]
+        # param = param_all[m.numTex:]
+
+        # # Generate 3DMM vertices from shape and similarity transform parameters
+        # vertexCoords = generateFace(np.r_[param[:-1], 0, param[-1]], m)
+
+        # # Generate the texture at the 3DMM vertices from the learned texture coefficients
+        # texParam = np.r_[texCoef, shCoef.flatten()]
+        # texture = generateTexture(vertexCoords, texParam, m)
+
+        # # Render the 3DMM
+        # renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
+        # renderObj.resetFramebufferObject()
+        # renderObj.render()
+        # rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
+
+        # plt.figure("Dense Shape 2")
+        # plt.imshow(rendering)
+
+        # writePly("../mesh_step2.ply", vertexCoords, m.face, texture)
+        # np.save("parameters", np.r_[texCoef, shCoef.flatten(), param])
+
+        # # Plot the 3DMM landmarks with the OpenPose landmarks over the image
+        # plt.figure("Desne fitting 2")
         # plt.imshow(img)
         # plt.scatter(vertexCoords[0, m.sourceLMInd], vertexCoords[1, m.sourceLMInd], s = 3, c = 'r')
         # plt.scatter(lm[:, 0], lm[:, 1], s = 2, c = 'g')
-        
-        # writePly("../mesh_sh_all.ply", vertexCoords, m.face, texture)
         # plt.show()
+
+
+        """
+        Optimization over shape, texture, and lighting
+        """
+        shCoef = np.zeros((9, 3))
+        shCoef[0, 0] = 0.5
+        shCoef[0, 1] = 0.5
+        shCoef[0, 2] = 0.5
+        allParam = np.r_[texCoef, shCoef.flatten(), param]
+
+        # Jointly optimize the texture and spherical harmonic lighting coefficients
+        randomFacesNum = 10000
+        initShapeTexLight = least_squares(opt.denseJointResiduals, allParam, jac = opt.denseJointJacobian, args = (img, lm, m, renderObj, (1, 1, 0.00002, 0.09)), loss = 'linear', verbose = 2)
+        allParam = initShapeTexLight['x']
+
+        print(texCoef.size + shCoef.size)
+        texParam3 = allParam[:texCoef.size + shCoef.size]
+        shapeParam3 = allParam[texCoef.size + shCoef.size:]
+
+        # Generate 3DMM vertices from shape and similarity transform parameters
+        vertexCoords = generateFace(np.r_[shapeParam3[:-1], 0, shapeParam3[-1]], m)
+
+        # Generate 3DMM texture form vertex & sh parameters
+        texture = generateTexture(vertexCoords, texParam3, m)
+        # texture = m.texMean + np.tensordot(m.texEvec, texCoef, axes = 1)
+
+        # Render the 3DMM
+        renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
+        renderObj.resetFramebufferObject()
+        renderObj.render()
+        rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
+
+        print(texParam3[texCoef.size:].reshape(9, 3))
+
+        plt.figure("Shape & Texture & SH")
+        plt.imshow(rendering)
+
+        # Plot the 3DMM landmarks with the OpenPose landmarks over the image
+        plt.figure("Desne fitting")
+        plt.imshow(img)
+        plt.scatter(vertexCoords[0, m.sourceLMInd], vertexCoords[1, m.sourceLMInd], s = 3, c = 'r')
+        plt.scatter(lm[:, 0], lm[:, 1], s = 2, c = 'g')
+        
+        writePly("../mesh_sh_all.ply", vertexCoords, m.face, texture)
+        scipy.misc.imsave("./" + str(frame) + ".png", rendering)
+        plt.show()
 
 
 
@@ -425,28 +475,34 @@ if __name__ == "__main__":
         # """
         # Optimization simultaneously over lighting parameters
         # """
-
         # shCoef = np.ones((9, 3)) * 0.0
         # shCoef[0, 0] = 0.5
         # shCoef[0, 1] = 0.5
         # shCoef[0, 2] = 0.5
-        # print(shCoef)
+        # # print(shCoef)
         # # Calculate normals at each vertex in the 3DMM
         # vertexNorms = calcNormals(vertexCoords, m)
 
         # # Evaluate spherical harmonics at face shape normals. The result is a (numVertices, 9) array where each column is a spherical harmonic basis for the 3DMM.
         # B = sh9(vertexNorms[:, 0], vertexNorms[:, 1], vertexNorms[:, 2])
-
         # texParam2 = shCoef.flatten()
+
+
+        # # print(jacobian(opt.lightingResiduals)(texParam2, texCoef, img, vertexCoords, B, m, renderObj).reshape(9, 3))
+        # # print("####################################")
+        # # print(opt.lightingGrad(texParam2, texCoef, img, vertexCoords, B, m, renderObj).reshape(9, 3))
+        # # break
 
         # wReg = 0
         # # Jointly optimize the texture and spherical harmonic lighting coefficients
         # for i in range(1):
-        #     randomFaces = np.random.randint(0, pixelFaces.size, numRandomFaces)
-        #     # initTexLight = least_squares(opt.textureLightingResiduals, texParam2, jac = opt.textureLightingJacobian, args = (img, vertexCoords, B, m, renderObj, (wCol, wReg)), loss = 'soft_l1', max_nfev = 100)
-        #     # initFit = minimize(opt.lightingResiduals, texParam2, args = (texCoef, img, vertexCoords, B, m, renderObj), options={'disp': True}, method = 'BFGS')
+        #     # randomFaces = np.random.randint(0, pixelFaces.size, numRandomFaces)
+        #     # initFit = minimize(value_and_grad(opt.lightingResiduals), texParam2, jac = True, args = (texCoef, img, vertexCoords, B, m, renderObj), options={'disp': True}, tol = 0.001, method = 'BFGS')
         #     # texParam2 = initFit.x
-        #     initTexLight = least_squares(opt.lightingResiduals, texParam2, jac = opt.lightingJacobian, args = (texCoef, img, vertexCoords, B, m, renderObj), loss = 'linear', method = 'trf', tr_solver = 'lsmr', verbose = 2)
+
+        #     initTexLight = least_squares(opt.lightingResiduals, texParam2, jac = opt.lightingJacobian, args = (texCoef, img, vertexCoords, B, m, renderObj), loss = 'linear', verbose = 2)
+        #     # initTexLight = least_squares(opt.lightingResiduals, texParam2, jac = opt.lightingGrad, args = (texCoef, img, vertexCoords, B, m, renderObj), loss = 'linear', verbose = 2, max_nfev = 20)
+        #     # initTexLight = least_squares(opt.lightingResiduals, texParam2, jac = jacobian(opt.lightingResiduals), args = (texCoef, img, vertexCoords, B, m, renderObj), loss = 'linear', verbose = 2,  max_nfev = 10)
         #     texParam2 = initTexLight['x']
 
         # shCoef = texParam2.reshape(9, 3)
