@@ -67,7 +67,7 @@ def generateTexture(vertexCoord, texParam, model):
     I = np.dot(shCoef[:, 0], sh) * texture[0, :]
     for c in range(1, 3):
         I = np.vstack((I, np.dot(shCoef[:, c], sh) * texture[c, :]))
-    
+
     return I
 
 def barycentricReconstruction(vertices, pixelFaces, pixelBarycentricCoords, indexData):
@@ -109,6 +109,9 @@ def calcNormals(vertexCoord, model):
 
     # TO DO: normalize result
     return normalize(vNorm)
+
+    # mean = np.sum(vNorm ** 2, axis = 0) / vNorm.shape[0]
+    # return vNorm / mean**(1/2)
 
     # return vNorm
 
