@@ -12,6 +12,7 @@ import numpy as np
 from scipy.optimize import minimize, check_grad, least_squares, nnls, lsq_linear
 from mpl_toolkits.mplot3d import Axes3D
 from skimage import io, img_as_float
+from skimage.transform import resize
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from pylab import savefig
@@ -84,13 +85,12 @@ if __name__ == "__main__":
 
     for frame in np.arange(0, 1):
         print(frame)
-        fName = 'subject_1_{:0>12}'.format(frame)
-        
-        """
-        Set filenames, read landmarks, load source video frames
-        """
-        # Frames from the source video
-        fNameImgOrig = 'orig/' + fName + '_rendered.png'
+
+        fName = '{:0>6}'.format(frame)
+        fNameImgOrig = 'obama/orig/' + fName + '.png'
+
+        # fName = 'subject_1_{:0>12}'.format(frame)
+        # fNameImgOrig = 'jack/orig/' + fName + '_rendered.png'
 
         # Load the source video frame and convert to 64-bit float
         b,g,r = cv2.split(cv2.imread(fNameImgOrig))
@@ -100,6 +100,12 @@ if __name__ == "__main__":
         shape2D = getFaceKeypoints(img_org, detector, predictor)
         shape2D = np.asarray(shape2D)[0].T 
         lm = shape2D[m.targetLMInd, :2]
+
+        # Resize image for speed
+        scale_factor = 1.0
+        img = resize(img, (int(img.shape[0] / scale_factor), int(img.shape[1] / scale_factor)))
+        lm = lm / scale_factor
+
 
         """
         Initial registration of similarity transform and shape coefficients
@@ -150,7 +156,7 @@ if __name__ == "__main__":
         # param = initFit['x']
 
         # Initial optimization of shape parameters with similarity transform parameters
-        # initFit = least_squares(opt.initialShapeResiuals, param, jac = opt.initialShapeJacobians, args = (lm, m, (wLan, wReg)), method = 'trf', tr_solver='lsmr', loss = 'linear', verbose = 2)
+        # initFit = least_squares(opt.initialShapeResiuals, param, jac = opt.initialShapeJacobians, x_scale = 'jac', args = (lm, m, (wLan, wReg)), verbose = 2)
         # param = initFit['x']
 
         elapsed = time.time() - start
@@ -180,8 +186,8 @@ if __name__ == "__main__":
         plt.scatter(lm[:, 0], lm[:, 1], s = 2, c = 'g')
 
         # Plot the OpenGL rendering
-        plt.figure("rendering")
-        plt.imshow(rendering)
+        # plt.figure("rendering")
+        # plt.imshow(rendering)
         # plt.show()
         # break
 
@@ -205,14 +211,15 @@ if __name__ == "__main__":
         # plt.show()
 
 
-        # # """
-        # # Get initial texture parameter guess
-        # # """
+        # """
+        # Get initial texture parameter guess
+        # """
         
-        # # # Set the number of faces for stochastic optimization
-        # numRandomFaces = 10000
+        # # Set the number of faces for stochastic optimization
+        numRandomFaces = 10000
 
         # wReg = 0.00005
+        wReg = 0.0005
 
         # # # TEST JACOBIANS
         # # print(jacobian(opt.textureCost)(texCoef, img, vertexCoords, m, renderObj, (wCol, wReg)))
@@ -223,7 +230,7 @@ if __name__ == "__main__":
         # # Do some cycles of nonlinear least squares iterations, using a new set of random faces each time for the optimization objective
         # for i in range(1):
         #     randomFaces = np.random.randint(0, pixelFaces.size, numRandomFaces)
-        #     initTex = least_squares(opt.textureResiduals, texCoef, jac = opt.textureJacobian, args = (img, vertexCoords, m, renderObj, (wCol, wReg), randomFaces), method = 'trf', tr_solver='lsmr', loss = 'linear', verbose = 2)
+        #     initTex = least_squares(opt.textureResiduals, texCoef, jac = opt.textureJacobian, args = (img, vertexCoords, m, renderObj, (wCol, wReg), randomFaces), method = 'trf', x_scale='jac', verbose = 2)
         #     texCoef = initTex['x']
 
         # # Generate the texture at the 3DMM vertices from the learned texture coefficients
@@ -291,33 +298,44 @@ if __name__ == "__main__":
         # plt.show()
 
 
-        # # """
-        # # Optimization over dense shape
-        # # """
-        # # # TEST JACOBIANS
-        # # print(jacobian(opt.denseCost)(param, img, texCoef, m, renderObj, vertexCoords, (wLan, wReg)))
-        # # print("####################################")
-        # # print(opt.denseGrad(param, img, texCoef, m, renderObj, (wLan, wReg)))
+        # """
+        # Optimization over dense shape
+        # """
+        # TEST JACOBIANS
+        # from sklearn.preprocessing import normalize
+        # auto_grad = jacobian(opt.denseCostV)(param, img, texCoef, m, renderObj, vertexCoords, (1, 0))
+        # print(normalize(auto_grad[:,np.newaxis], axis=0).ravel())
+        # print("####################################")
+        # my_grad = opt.denseGrad(param, img, texCoef, m, renderObj, (1, 0))
+        # print(normalize(my_grad[:,np.newaxis], axis=0).ravel())
         # # break
 
-        # # # SHIFTED
-        # # param[-3] = param[-3] + 5.0
-        # # vertexCoords = generateFace(np.r_[param[:-1], 0, param[-1]], m)
-        # # renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
-        # # renderObj.resetFramebufferObject()
-        # # renderObj.render()
-        # # rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
-        # # plt.figure("Shifted")
-        # # plt.imshow(rendering)
-        # # # Plot the 3DMM landmarks with the OpenPose landmarks over the image
-        # # plt.figure("Shifted fitting")
-        # # plt.imshow(img)
-        # # plt.scatter(vertexCoords[0, m.sourceLMInd], vertexCoords[1, m.sourceLMInd], s = 3, c = 'r')
-        # # plt.scatter(lm[:, 0], lm[:, 1], s = 2, c = 'g')
-        # # # plt.show()
+        # Test JACOBIANS MANUALY
+        # print(tst.denseJacobianAt(param, 0, img, texCoef, m, renderObj, (wLan, 0.00000)))
+        # break
 
-        # initFit = least_squares(opt.denseResiduals, param, jac = opt.denseJacobian, args = (img, texCoef, m, renderObj, (wLan, 0.000005)), method = 'trf', tr_solver='lsmr', loss = 'linear', verbose = 2)
+        # # SHIFTED
+        # param[-3] = param[-3] + 5.0
+        # param[0] = param[0] + 4.0
+        # vertexCoords = generateFace(np.r_[param[:-1], 0, param[-1]], m)
+        # renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
+        # renderObj.resetFramebufferObject()
+        # renderObj.render()
+        # rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
+        # plt.figure("Shifted")
+        # plt.imshow(rendering)
+        # # Plot the 3DMM landmarks with the OpenPose landmarks over the image
+        # plt.figure("Shifted fitting")
+        # plt.imshow(img)
+        # plt.scatter(vertexCoords[0, m.sourceLMInd], vertexCoords[1, m.sourceLMInd], s = 3, c = 'r')
+        # plt.scatter(lm[:, 0], lm[:, 1], s = 2, c = 'g')
+        # plt.show()
+
+        # initFit = least_squares(opt.denseResiduals, param, jac = opt.denseJacobian, args = (img, texCoef, m, renderObj, (wLan, 0.0005)), max_nfev = 10, method = 'trf', verbose = 2)
         # param = initFit['x']
+
+        # # initFit = minimize(value_and_grad(opt.denseCostV), param, jac = True, args = (img, texCoef, m, renderObj, vertexCoords, (wLan, 0.000005)), options={'disp': True})
+        # # param = initFit.x
 
         # # Generate 3DMM vertices from shape and similarity transform parameters
         # vertexCoords = generateFace(np.r_[param[:-1], 0, param[-1]], m)
@@ -479,12 +497,8 @@ if __name__ == "__main__":
         # break
 
         # Jointly optimize the texture and spherical harmonic lighting coefficients
-        initShapeTexLight = least_squares(opt.denseJointResiduals, allParam, jac = opt.denseJointJacobian, args = (img, lm, m, renderObj, (1, 1, 0.00000000005, 0.008)), loss = 'linear', verbose = 2, max_nfev = 50, method = 'trf', tr_solver='lsmr')
+        initShapeTexLight = least_squares(opt.denseJointResiduals, allParam, jac = opt.denseJointJacobian, max_nfev = 15, args = (img, lm, m, renderObj, (1, 0.05, 2.5e-5, 2.5e-4)), verbose = 2, x_scale = 'jac')
         allParam = initShapeTexLight['x']
-
-        # initFit = minimize(opt.denseJointCost, allParam, jac = opt.denseJointGrad, args = (img, lm, m, renderObj, (1, 5, 0.000002, 0.08)), method='BFGS', options={'disp': True, 'maxiter': 10})
-        # allParam = initFit.x
-
         texParam3 = allParam[:texCoef.size + shCoef.size]
         shapeParam3 = allParam[texCoef.size + shCoef.size:]
 

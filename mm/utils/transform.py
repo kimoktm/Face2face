@@ -102,37 +102,26 @@ def sh9(x, y, z):
     # h[7, :] = 3/2*np.sqrt(5/(12*np.pi)) * (np.square(x) - np.square(y))
     # h[8, :] = 3*np.sqrt(5/(12*np.pi)) * x * y
     # return h * np.r_[np.pi, np.repeat(2 * np.pi/ 3, 3), np.repeat(np.pi/ 4, 5)][:, np.newaxis]
-    
-    # h = np.empty((9, x.size))
-    # h[0, :] = np.ones(x.size)
-    # h[1, :] = z
-    # h[2, :] = x
-    # h[3, :] = y
-    # h[4, :] = (3 * np.square(z) - 1)
-    # h[5, :] = x * z
-    # h[6 ,:] = y * z
-    # h[7, :] = (np.square(x) - np.square(y))
-    # h[8, :] = x * y
 
-    # h = np.empty((9, x.size))
-    # h[0, :] = np.ones(x.size)
-    # h[1, :] = y
-    # h[2, :] = z
-    # h[3, :] = x
-    # h[4, :] = x * y
-    # h[5 ,:] = y * z
-    # h[6, :] = (3 * np.square(z) - 1)
-    # h[7, :] = x * z
-    # h[8, :] = (np.square(x) - np.square(y))
+    h = np.empty((9, x.size))
+    h[0, :] = np.ones(x.size)
+    h[1, :] = y
+    h[2, :] = z
+    h[3, :] = x
+    h[4, :] = x * y
+    h[5 ,:] = y * z
+    h[6, :] = (3 * np.square(z) - 1)
+    h[7, :] = x * z
+    h[8, :] = (np.square(x) - np.square(y))
 
-    h = np.ones(x.size)
-    h = np.vstack((h, y))
-    h = np.vstack((h, z))
-    h = np.vstack((h, x))
-    h = np.vstack((h, x * y))
-    h = np.vstack((h, y * z))
-    h = np.vstack((h, (3 * np.square(z) - 1)))
-    h = np.vstack((h, x * z))
-    h = np.vstack((h, (np.square(x) - np.square(y))))
+    # h = np.ones(x.size)
+    # h = np.vstack((h, y))
+    # h = np.vstack((h, z))
+    # h = np.vstack((h, x))
+    # h = np.vstack((h, x * y))
+    # h = np.vstack((h, y * z))
+    # h = np.vstack((h, (3 * np.square(z) - 1)))
+    # h = np.vstack((h, x * z))
+    # h = np.vstack((h, (np.square(x) - np.square(y))))
    
     return h

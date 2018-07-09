@@ -54,17 +54,6 @@ def dR_sh(x, y, z, dR_x, dR_y, dR_z):
     """
 
     dR_h = np.empty((9, x.size, dR_x.shape[1]))
-
-    # dR_h[0, :] = np.zeros((x.size, dR_x.shape[1]))
-    # dR_h[1, :] = dR_z
-    # dR_h[2, :] = dR_x
-    # dR_h[3, :] = dR_y
-    # dR_h[4, :] = 6 * np.multiply(dR_z, z[:, np.newaxis])
-    # dR_h[5, :] = np.multiply(dR_z, x[:, np.newaxis]) + np.multiply(dR_x, z[:, np.newaxis])
-    # dR_h[6 ,:] = np.multiply(dR_z, y[:, np.newaxis]) + np.multiply(dR_y, z[:, np.newaxis])
-    # dR_h[7, :] = 2 * (np.multiply(dR_x, x[:, np.newaxis]) - np.multiply(dR_y, y[:, np.newaxis]))
-    # dR_h[8, :] = np.multiply(dR_y, x[:, np.newaxis]) + np.multiply(dR_x, y[:, np.newaxis])
-
     dR_h[0, :] = np.zeros((x.size, dR_x.shape[1]))
     dR_h[1, :] = dR_y
     dR_h[2, :] = dR_z
