@@ -74,7 +74,7 @@ if __name__ == "__main__":
     predictor = dlib.shape_predictor(predictor_path)
     
     # Load parameters
-    all_param = np.load("./parameters.npy")
+    all_param = np.load("./obama_parameters.npy")
     texCoef = all_param[:m.numTex]
     shCoef = all_param[m.numTex: m.numTex + 27]
     param = all_param[m.numTex + 27:]
@@ -93,7 +93,7 @@ if __name__ == "__main__":
         # Load the source video frame and convert to 64-bit float
         b,g,r = cv2.split(cv2.imread(fNameImgOrig))
         img_org = cv2.merge([r,g,b])
-        img_org = cv2.GaussianBlur(img_org, (9,9), 0)
+        # img_org = cv2.GaussianBlur(img_org, (9,9), 0)
         img = img_as_float(img_org)
 
         # plt.figure("Blurre")
@@ -118,7 +118,7 @@ if __name__ == "__main__":
 
             # plt.figure("Initial")
             # plt.imshow(rendering)
-            # scipy.misc.imsave("./" + str(frame) + "_orig.png", rendering)
+            scipy.misc.imsave("./" + str(frame) + "_orig.png", rendering)
 
 
 
@@ -128,7 +128,7 @@ if __name__ == "__main__":
 
 
         # Landmarks fitting - Should be removed
-        # initFit = least_squares(opt.expResiuals, param[m.numId:], jac = opt.expJacobians, args = (idCoef, lm, m, (1, 0.01)), method = 'trf', tr_solver='lsmr', loss = 'linear', verbose = 2)
+        # initFit = least_squares(opt.expResiduals, param[m.numId:], jac = opt.expJacobians, args = (idCoef, lm, m, (1, 0.05)), x_scale = 'jac')
         # param[m.numId:] = initFit['x']
         # Generate 3DMM vertices from shape and similarity transform parameters
         # vertexCoords = generateFace(np.r_[param[:-1], 0, param[-1]], m)
@@ -251,12 +251,14 @@ if __name__ == "__main__":
         # renderObj = Render(img.shape[1], img.shape[0], meshData, m.face)
 
 
-        # initFit = least_squares(opt.denseExpOnlyResiduals, param[m.numId:], jac = opt.denseExpOnlyJacobian, max_nfev = 2, args = (idCoef, texCoef, shCoef.reshape(9 ,3), img, m, renderObj, (1, 2.5e-6)), verbose = 0, x_scale = 'jac')
+        # initFit = least_squares(opt.denseExpOnlyResiduals, param[m.numId:], jac = opt.denseExpOnlyJacobian, max_nfev = 10, args = (idCoef, texCoef, shCoef.reshape(9 ,3), img, m, renderObj, (1, 2.5e-4)), verbose = 0, x_scale = 'jac')
         # expCoef = initFit['x']
         # param = np.r_[idCoef, expCoef]
 
-        #initFit = least_squares(opt.denseJointExpResiduals, np.r_[shCoef, param[m.numId:]], max_nfev = 10, jac = opt.denseJointExpJacobian, args = (idCoef, texCoef, img, lm, m, renderObj, (1, 0.000025, 2.5e-4)), verbose = 0, x_scale = 'jac')
-        initFit = least_squares(opt.denseJointExpResiduals, np.r_[shCoef, param[m.numId:]], max_nfev = 10, jac = opt.denseJointExpJacobian, args = (idCoef, texCoef, img, lm, m, renderObj, (1, 0, 2.5e-4)), verbose = 0, x_scale = 'jac')
+        # initFit = least_squares(opt.denseJointExpResiduals, np.r_[shCoef, param[m.numId:]], max_nfev = 10, jac = opt.denseJointExpJacobian, args = (idCoef, texCoef, img, lm, m, renderObj, (1, 0.000025, 2.5e-4)), verbose = 0, x_scale = 'jac')
+        # LSMR is numerically stable combared to the default option (Exact)
+        #
+        initFit = least_squares(opt.denseJointExpResiduals, np.r_[shCoef, param[m.numId:]], tr_solver = 'lsmr', max_nfev = 10, jac = opt.denseJointExpJacobian, args = (idCoef, texCoef, img, lm, m, renderObj, (1, 2.5e-5, 1.25e-4)), verbose = 0, x_scale = 'jac')
         shCoef = initFit['x'][:27]
         expCoef = initFit['x'][27:]
         param = np.r_[idCoef, expCoef]
@@ -276,7 +278,6 @@ if __name__ == "__main__":
 
         # plt.figure("Dense Shape 3")
         # plt.imshow(rendering)
-        # plt.show()
 
         # # Plot the 3DMM landmarks with the OpenPose landmarks over the image
         # plt.figure("Desne fitting 3")

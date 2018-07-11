@@ -152,11 +152,11 @@ if __name__ == "__main__":
         # initFit = least_squares(opt.initialShapeCost, param, jac=jacobian(opt.initialShapeCost), args = (lm, m, (wLan, wReg)), tr_solver = 'lsmr', loss = 'linear',verbose = 2)
         # param = initFit['x']
 
-        # initFit = least_squares(opt.initialShapeResiuals, param, jac=jacobian(opt.initialShapeResiuals), args = (lm, m, (wLan, wReg)),loss = 'linear', verbose = 2)
+        # initFit = least_squares(opt.initialShapeResiduals, param, jac=jacobian(opt.initialShapeResiduals), args = (lm, m, (wLan, wReg)),loss = 'linear', verbose = 2)
         # param = initFit['x']
 
         # Initial optimization of shape parameters with similarity transform parameters
-        # initFit = least_squares(opt.initialShapeResiuals, param, jac = opt.initialShapeJacobians, x_scale = 'jac', args = (lm, m, (wLan, wReg)), verbose = 2)
+        # initFit = least_squares(opt.initialShapeResiduals, param, jac = opt.initialShapeJacobians, x_scale = 'jac', args = (lm, m, (wLan, wReg)), verbose = 2)
         # param = initFit['x']
 
         elapsed = time.time() - start
@@ -497,7 +497,7 @@ if __name__ == "__main__":
         # break
 
         # Jointly optimize the texture and spherical harmonic lighting coefficients
-        initShapeTexLight = least_squares(opt.denseJointResiduals, allParam, jac = opt.denseJointJacobian, max_nfev = 15, args = (img, lm, m, renderObj, (1, 0.05, 2.5e-5, 2.5e-4)), verbose = 2, x_scale = 'jac')
+        initShapeTexLight = least_squares(opt.denseJointResiduals, allParam, jac = opt.denseJointJacobian, tr_solver = 'lsmr', max_nfev = 35, args = (img, lm, m, renderObj, (1, 1.25e-4, 2.5e-5, 1.25e-5)), verbose = 2, x_scale = 'jac')
         allParam = initShapeTexLight['x']
         texParam3 = allParam[:texCoef.size + shCoef.size]
         shapeParam3 = allParam[texCoef.size + shCoef.size:]

@@ -2,12 +2,9 @@
 # -*- coding: utf-8 -*-
 """This module contains functions that concern operations on 3DMMs. Perhaps these will be integrated into the MeshModel class later on.
 """
-# import numpy as np
+import numpy as np
 from .transform import rotMat2angle, sh9
 from sklearn.preprocessing import normalize
-
-# delte
-import autograd.numpy as np
 
 
 def generateFace(param, model, ind = None):
@@ -52,21 +49,15 @@ def generateTexture(vertexCoord, texParam, model):
     """
     texCoef = texParam[:model.texEval.size]
     shCoef = texParam[model.texEval.size:].reshape(9, 3)
-    # shCoef = np.reshape(texParam[model.texEval.size:], (9, 3))
+    vertexColor = model.texMean + np.tensordot(model.texEvec, texCoef, axes = 1)
 
-    texture = model.texMean + np.tensordot(model.texEvec, texCoef, axes = 1)
-    
     # Evaluate spherical harmonics at face shape normals
     vertexNorms = calcNormals(vertexCoord, model)
     sh = sh9(vertexNorms[:, 0], vertexNorms[:, 1], vertexNorms[:, 2])
 
-    # I = np.empty((3, model.numVertices))
-    # for c in range(3):
-    #     I[c, :] = np.dot(shCoef[:, c], sh) * texture[c, :]
-
-    I = np.dot(shCoef[:, 0], sh) * texture[0, :]
-    for c in range(1, 3):
-        I = np.vstack((I, np.dot(shCoef[:, c], sh) * texture[c, :]))
+    I = np.empty((3, model.numVertices))
+    for c in range(3):
+        I[c, :] = np.dot(shCoef[:, c], sh) * vertexColor[c, :]
 
     return I
 
@@ -107,13 +98,26 @@ def calcNormals(vertexCoord, model):
 
     vNorm = np.array([np.sum(faceNorm[faces, :], axis = 0) for faces in model.vertex2face])
 
-    # TO DO: normalize result
-    return normalize(vNorm)
+    return normalize(vNorm, norm = 'l2')
 
-    # mean = np.sum(vNorm ** 2, axis = 0) / vNorm.shape[0]
-    # return vNorm / mean**(1/2)
 
-    # return vNorm
+# TO DO: only use pixel faces
+def calcFaceNormals(vertexCoord, model, pixelFaces = None):
+    """Calculates the per-vertex normal vectors for a model given shape coefficients.
+    
+    Args:
+        vertexCoord (ndarray): Vertex coordinates for the 3DMM, (3, numVertices)
+        model (MeshModel): 3DMM MeshModel class object
+    
+    Returns:
+        ndarray: Per-vertex normal vectors
+    """
+    faceNorm = np.cross(vertexCoord[:, model.face[:, 0]] - vertexCoord[:, model.face[:, 1]], vertexCoord[:, model.face[:, 0]] - vertexCoord[:, model.face[:, 2]], axisa = 0, axisb = 0)
+
+    if pixelFaces is not None:
+        faceNorm = faceNorm[np.unique(pixelFaces)]
+
+    return normalize(faceNorm, norm = 'l2')
 
 
 def subdivide(v, f):

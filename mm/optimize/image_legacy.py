@@ -25,7 +25,7 @@ def initialShapeCost(param, target, model, w = (1, 1)):
 
     return w[0] * Elan + w[1] * Ereg
 
-def initialShapeResiuals(param, target, model, w = (1, 1)):
+def initialShapeResiduals(param, target, model, w = (1, 1)):
     # Shape eigenvector coefficients
     idCoef = param[: model.numId]
     expCoef = param[model.numId: model.numId + model.numExp]

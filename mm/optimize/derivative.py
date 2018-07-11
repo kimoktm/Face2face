@@ -58,10 +58,10 @@ def dR_sh(x, y, z, dR_x, dR_y, dR_z):
     dR_h[1, :] = dR_y
     dR_h[2, :] = dR_z
     dR_h[3, :] = dR_x
-    dR_h[4, :] = np.multiply(dR_y, x[:, np.newaxis]) + np.multiply(dR_x, y[:, np.newaxis])
-    dR_h[5 ,:] = np.multiply(dR_z, y[:, np.newaxis]) + np.multiply(dR_y, z[:, np.newaxis])
+    dR_h[4, :] = np.multiply(dR_x, y[:, np.newaxis]) + np.multiply(x[:, np.newaxis], dR_y)
+    dR_h[5 ,:] = np.multiply(dR_y, z[:, np.newaxis]) + np.multiply(y[:, np.newaxis], dR_z)
     dR_h[6, :] = 6 * np.multiply(dR_z, z[:, np.newaxis])
-    dR_h[7, :] = np.multiply(dR_z, x[:, np.newaxis]) + np.multiply(dR_x, z[:, np.newaxis])
+    dR_h[7, :] = np.multiply(dR_x, z[:, np.newaxis]) + np.multiply(x[:, np.newaxis], dR_z)
     dR_h[8, :] = 2 * (np.multiply(dR_x, x[:, np.newaxis]) - np.multiply(dR_y, y[:, np.newaxis]))
 
     return dR_h
@@ -85,14 +85,62 @@ def dR_normal(vertexCoord, model, dR_vertex):
 
     dR_a = dR_vertex[:, model.face[:, 0]] - dR_vertex[:, model.face[:, 1]]
     dR_b = dR_vertex[:, model.face[:, 0]] - dR_vertex[:, model.face[:, 2]]
-    
+
     dR_faceNorm = np.empty((a.shape[1], a.shape[0], dR_a.shape[2]))
     for v in range(0, dR_a.shape[2]):
         dR_faceNorm[:, :, v] = np.cross(dR_a[:,:,v], b, axisa = 0, axisb = 0) + np.cross(a, dR_b[:,:,v], axisa = 0, axisb = 0)
 
     dR_vNorm = np.array([np.sum(dR_faceNorm[faces, :], axis = 0) for faces in model.vertex2face])
 
+    # WRONG: derivative for norm
     for v in range(0, dR_a.shape[2]):
         dR_vNorm[:, :, v] = normalize(dR_vNorm[:, :, v])
 
     return dR_vNorm
+
+
+def dR_normal_faces(vertexCoord, model, dR_vertex, pixelFaces = None):
+    """Calculates the per-vertex normal vectors for a model given shape coefficients.
+    
+    Args:
+        vertexCoord (ndarray): Vertex coordinates for the 3DMM, (3, numVertices)
+        model (MeshModel): 3DMM MeshModel class object
+    
+    Returns:
+        ndarray: Per-vertex normal vectors
+    """
+
+    if len(dR_vertex.shape) is 2:
+        dR_vertex = dR_vertex[:, :, np.newaxis]
+
+    a = vertexCoord[:, model.face[:, 0]] - vertexCoord[:, model.face[:, 1]]
+    b = vertexCoord[:, model.face[:, 0]] - vertexCoord[:, model.face[:, 2]]
+
+    dR_a = dR_vertex[:, model.face[:, 0]] - dR_vertex[:, model.face[:, 1]]
+    dR_b = dR_vertex[:, model.face[:, 0]] - dR_vertex[:, model.face[:, 2]]
+
+    dR_faceNorm = np.empty((a.shape[1], a.shape[0], dR_a.shape[2]))
+    for v in range(0, dR_a.shape[2]):
+        dR_faceNorm[:, :, v] = np.cross(dR_a[:,:,v], b, axisa = 0, axisb = 0) + np.cross(a, dR_b[:,:,v], axisa = 0, axisb = 0)
+
+    if pixelFaces is not None:
+        dR_faceNorm = dR_faceNorm[np.unique(pixelFaces)]
+
+    # normalization derivative
+    faceNorm = np.cross(a, b, axisa = 0, axisb = 0)
+
+    return dR_l2_normalization(faceNorm, dR_faceNorm)
+
+
+def dR_l2_normalization(v, dR_v):
+    dR_normalization = np.empty((dR_v.shape))
+    x_sq = v[:, 0]**2
+    y_sq = v[:, 1]**2
+    z_sq = v[:, 2]**2
+    demi = (x_sq + y_sq + z_sq)**(3/2)
+
+    dR_normalization[:, 0] = np.multiply(((y_sq + z_sq) / demi)[:, np.newaxis], dR_v[:, 0])
+    dR_normalization[:, 1] = np.multiply(((x_sq + z_sq) / demi)[:, np.newaxis], dR_v[:, 1])
+    dR_normalization[:, 2] = np.multiply(((x_sq + y_sq) / demi)[:, np.newaxis], dR_v[:, 2])
+
+    return dR_normalization
