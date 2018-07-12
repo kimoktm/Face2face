@@ -126,7 +126,7 @@ def expJacobians(param, idCoef, target, model, w = (1, 1)):
 
 
 
-## ~CORRECT
+## CORRECT
 def denseJointResiduals(param, img, target, model, renderObj, w = (1, 1, 1, 1), randomFacesNum = None):
     # Shape eigenvector coefficients
     texCoef = param[: model.numTex]
@@ -325,7 +325,6 @@ def denseJointExpResiduals(param, idCoef, texCoef, img, target, model, renderObj
     shCoef = param[: 27].reshape(9, 3)
     param = np.r_[idCoef, param[27:]]
     expCoef = param[model.numId: model.numId + model.numExp]
-    # print(expCoef)
 
     # Insert z translation
     shape_param = np.r_[param[:-1], 0, param[-1]]
@@ -481,6 +480,10 @@ def denseJointExpJacobian(param, idCoef, texCoef, img, target, model, renderObj,
     wlan = (w[1] / model.sourceLMInd.size)**(1/2)
     wreg_shape = w[2]**(1/2)
 
+    # REMOVE - TESTING
+    # Fix non-constant sh coff (dependent on normals)
+    # J_shCoef[:, 3:] = 0
+
     J_denseCoef = np.c_[J_shCoef, J_denshapeCoef]
 
     # Reg cost not correct
@@ -488,3 +491,68 @@ def denseJointExpJacobian(param, idCoef, texCoef, img, target, model, renderObj,
     eq2[:, 27 : 27 + expCoef.size] = np.diag(expCoef / model.expEval)
 
     return np.r_[wcol * J_denseCoef, wlan * Jlan_landmarks, wreg_shape * eq2]
+
+
+# MULTI-FRAME ~ Testing
+def multiDenseJointResiduals(params, imgs, targets, model, renderObj, w = (1, 1, 1, 1), randomFacesNum = None):
+    if len(imgs.shape) is 3:
+        imgs = imgs[np.newaxis, :]
+
+    if len(targets.shape) is 2:
+        targets = targets[np.newaxis, :]
+
+    num_images = imgs.shape[0]
+    unique_params = int((params.size - (model.numTex + model.numId)) / num_images)
+
+    # texCoef, idCoef are fixed across all images
+    # params (texCoef, idCoef, (27 sh, 78 expCoef, 6 poseCoef) * num images)
+    texCoef = params[: model.numTex]
+    idCoef = params[model.numTex : model.numTex + model.numId]
+
+    residuals = np.array([])
+    for i in range(num_images):
+        shRange  = np.index_exp[model.numTex + model.numId + unique_params * i : model.numTex + model.numId + unique_params * i + 27]
+        expRange = np.index_exp[model.numTex + model.numId + 27 + unique_params * i : model.numTex + model.numId + unique_params * i + unique_params]
+
+        shCoef = params[shRange]
+        expCoef = params[expRange]
+        param = np.r_[texCoef, shCoef, idCoef, expCoef]
+        img_residuals = denseJointResiduals(param, imgs[i], targets[i], model, renderObj, w, randomFacesNum)
+        residuals = np.r_[residuals, img_residuals] if residuals.size else img_residuals
+
+    return residuals
+
+def multiDenseJointJacobian(params, imgs, targets, model, renderObj, w = (1, 1, 1, 1), randomFacesNum = None):
+    if len(imgs.shape) is 3:
+        imgs = imgs[np.newaxis, :]
+
+    if len(targets.shape) is 2:
+        targets = targets[np.newaxis, :]
+
+    num_images = imgs.shape[0]
+    unique_params = int((params.size - (model.numTex + model.numId)) / num_images)
+
+    # texCoef, idCoef are fixed across all images
+    # params (texCoef, idCoef, (27 sh, 78 expCoef, 6 poseCoef) * num images)
+    texCoef = params[: model.numTex]
+    idCoef = params[model.numTex : model.numTex + model.numId]
+
+    jacobians = np.array([])
+    for i in range(num_images):
+        shRange  = np.index_exp[model.numTex + model.numId + unique_params * i : model.numTex + model.numId + unique_params * i + 27]
+        expRange = np.index_exp[model.numTex + model.numId + 27 + unique_params * i : model.numTex + model.numId + unique_params * i + unique_params]
+
+        shCoef = params[shRange]
+        expCoef = params[expRange]
+        param = np.r_[texCoef, shCoef, idCoef, expCoef]
+        img_jacobian = denseJointJacobian(param, imgs[i], targets[i], model, renderObj, w, randomFacesNum)
+
+        # Need to re-arrange jacobian correctly
+        extended_jacobian = np.zeros((img_jacobian.shape[0], params.size))
+        extended_jacobian[:, : model.numTex] = img_jacobian[:, : model.numTex] # texCoef
+        extended_jacobian[:, model.numTex : model.numTex + model.numId] = img_jacobian[:, model.numTex + 27 : model.numTex + 27 + model.numId] # idCoef
+        extended_jacobian[:, model.numTex + model.numId + unique_params * i : model.numTex + model.numId + unique_params * i + 27] = img_jacobian[:, model.numTex : model.numTex + 27] # img_shCoef
+        extended_jacobian[:, model.numTex + model.numId + 27 + unique_params * i : model.numTex + model.numId + unique_params * i + unique_params] = img_jacobian[:, model.numTex + 27 + model.numId :] # img_expCoef
+        jacobians = np.r_[jacobians, extended_jacobian] if jacobians.size else extended_jacobian
+
+    return jacobians

@@ -25,7 +25,6 @@ def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=640):
         imgScale = maxImgSizeForDetection / float(max(img.shape))
         scaledImg = cv2.resize(img, (int(img.shape[1] * imgScale), int(img.shape[0] * imgScale)))
 
-    #detekcja twarzy
     dets = detector(scaledImg, 1)
 
     if len(dets) == 0:
@@ -34,14 +33,9 @@ def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=640):
     shapes2D = []
     for det in dets:
         faceRectangle = dlib.rectangle(int(det.left() / imgScale), int(det.top() / imgScale), int(det.right() / imgScale), int(det.bottom() / imgScale))
-
-        #detekcja punktow charakterystycznych twarzy
         dlibShape = predictor(img, faceRectangle)
-        
         shape2D = np.array([[p.x, p.y] for p in dlibShape.parts()])
-        #transpozycja, zeby ksztalt byl 2 x n a nie n x 2, pozniej ulatwia to obliczenia
         shape2D = shape2D.T
-
         shapes2D.append(shape2D)
 
     return shapes2D

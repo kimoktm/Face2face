@@ -113,15 +113,5 @@ def sh9(x, y, z):
     h[6, :] = (3 * np.square(z) - 1)
     h[7, :] = x * z
     h[8, :] = (np.square(x) - np.square(y))
-
-    # h = np.ones(x.size)
-    # h = np.vstack((h, y))
-    # h = np.vstack((h, z))
-    # h = np.vstack((h, x))
-    # h = np.vstack((h, x * y))
-    # h = np.vstack((h, y * z))
-    # h = np.vstack((h, (3 * np.square(z) - 1)))
-    # h = np.vstack((h, x * z))
-    # h = np.vstack((h, (np.square(x) - np.square(y))))
    
     return h
