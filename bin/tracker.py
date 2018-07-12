@@ -4,23 +4,18 @@ from mm.models import MeshModel
 from mm.utils.opengl import Render
 from mm.optimize.camera import estimateCamMat, splitCamMat
 import mm.optimize.image as opt
-from mm.utils.mesh import calcNormals, generateFace, generateTexture, barycentricReconstruction, writePly
-from mm.utils.transform import sh9
+from mm.utils.mesh import generateFace, generateTexture, writePly
 
-import os, json
-import numpy as np
-from scipy.optimize import minimize, check_grad, least_squares, nnls, lsq_linear
-from mpl_toolkits.mplot3d import Axes3D
-from skimage import io, img_as_float
-from skimage.transform import resize
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
-from pylab import savefig
-
-import scipy.misc
+import os
 import time
 import dlib
 import cv2
+import scipy.misc
+import numpy as np
+from scipy.optimize import least_squares
+from skimage import io, img_as_float
+from skimage.transform import resize
+import matplotlib.pyplot as plt
 
 
 def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=640):
@@ -126,92 +121,9 @@ if __name__ == "__main__":
         # Optimization over all experssion & SH
         # """
 
-
-        # Landmarks fitting - Should be removed
-        # initFit = least_squares(opt.expResiduals, param[m.numId:], jac = opt.expJacobians, args = (idCoef, lm, m, (1, 0.05)), x_scale = 'jac')
-        # param[m.numId:] = initFit['x']
-        # Generate 3DMM vertices from shape and similarity transform parameters
-        # vertexCoords = generateFace(np.r_[param[:-1], 0, param[-1]], m)
-        # # Generate the texture at the 3DMM vertices from the learned texture coefficients
-        # texParam = np.r_[texCoef, shCoef.flatten()]
-        # texture = generateTexture(vertexCoords, texParam, m)
-        # # Render the 3DMM
-        # renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
-        # renderObj.resetFramebufferObject()
-        # renderObj.render()
-        # rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
-        # plt.figure("Sparse 1")
-        # plt.imshow(rendering)
-        # # Plot the 3DMM landmarks with the OpenPose landmarks over the image
-        # plt.figure("Sparse fitting 1")
-        # plt.imshow(img)
-        # plt.scatter(vertexCoords[0, m.sourceLMInd], vertexCoords[1, m.sourceLMInd], s = 3, c = 'r')
-        # plt.scatter(lm[:, 0], lm[:, 1], s = 2, c = 'g')
-        # plt.show()
-
-
         # Coarse to fine optimization
         # iterations = np.array([5, 3, 2])
         # for i in iterations:
-
-        # scale_factor = 4
-        # img_resized = resize(img, (int(img.shape[0] / scale_factor), int(img.shape[1] / scale_factor)))
-        # param[-3:] = param[-3:] / scale_factor
-        # renderObj = Render(img_resized.shape[1], img_resized.shape[0], meshData, m.face)
-        # initFit = least_squares(opt.denseJointExpResiduals, np.r_[shCoef, param[m.numId:]], jac = opt.denseJointExpJacobian, args = (idCoef, texCoef, img_resized, lm / scale_factor, m, renderObj, (2, 10 * scale_factor, 0.000000005)), loss = 'linear', verbose = 0, max_nfev = 5, method = 'trf', tr_solver='lsmr')
-        # shCoef = initFit['x'][:27]
-        # expCoef = initFit['x'][27:]
-        # param = np.r_[idCoef, expCoef]
-        # # Generate 3DMM vertices from shape and similarity transform parameters
-        # # vertexCoords = generateFace(np.r_[param[:-1], 0, param[-1]], m)
-        # # # Generate the texture at the 3DMM vertices from the learned texture coefficients
-        # # texParam = np.r_[texCoef, shCoef.flatten()]
-        # # texture = generateTexture(vertexCoords, texParam, m)
-        # # # Render the 3DMM
-        # # renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
-        # # renderObj.resetFramebufferObject()
-        # # renderObj.render()
-        # # rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
-        # # plt.figure("Dense Shape 1")
-        # # plt.imshow(rendering)
-        # # Upscale paramters again
-        # param[-3:] = param[-3:] * scale_factor
-        # renderObj = Render(img.shape[1], img.shape[0], meshData, m.face)
-
-
-        # scale_factor = 2
-        # img_resized = resize(img, (int(img.shape[0] / scale_factor), int(img.shape[1] / scale_factor)))
-        # param[-3:] = param[-3:] / scale_factor
-        # renderObj = Render(img_resized.shape[1], img_resized.shape[0], meshData, m.face)
-        # initFit = least_squares(opt.denseJointExpResiduals, np.r_[shCoef, param[m.numId:]], jac = opt.denseJointExpJacobian, args = (idCoef, texCoef, img_resized, lm / scale_factor, m, renderObj, (2, 10 * scale_factor, 0.000000005)), loss = 'linear', verbose = 0, max_nfev = 3, method = 'trf', tr_solver='lsmr')
-        # shCoef = initFit['x'][:27]
-        # expCoef = initFit['x'][27:]
-        # param = np.r_[idCoef, expCoef]
-        # # Generate 3DMM vertices from shape and similarity transform parameters
-        # # vertexCoords = generateFace(np.r_[param[:-1], 0, param[-1]], m)
-        # # # Generate the texture at the 3DMM vertices from the learned texture coefficients
-        # # texParam = np.r_[texCoef, shCoef.flatten()]
-        # # texture = generateTexture(vertexCoords, texParam, m)
-        # # # Render the 3DMM
-        # # renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
-        # # renderObj.resetFramebufferObject()
-        # # renderObj.render()
-        # # rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
-        # # plt.figure("Dense Shape 2")
-        # # plt.imshow(rendering)
-        # # Upscale paramters again
-        # param[-3:] = param[-3:] * scale_factor
-        # renderObj = Render(img.shape[1], img.shape[0], meshData, m.face)
-
-
-        # numRandomFaces =  10000
-        # randomFaces = np.random.randint(0, pixelFaces.size - 300, numRandomFaces)
-        # initFit = least_squares(opt.denseJointExpResiduals, np.r_[shCoef, param[m.numId:]], jac = opt.denseJointExpJacobian, args = (idCoef, texCoef, img, lm, m, renderObj, (1, 0, 0.0)), loss = 'linear', verbose = 2, max_nfev = 30, tr_solver = 'lsmr', method = 'trf')
-        # shCoef = initFit['x'][:27]
-        # expCoef = initFit['x'][27:]
-        # param = np.r_[idCoef, expCoef]
-
-
 
         # scale_factor = 4
         # img_resized = resize(img, (int(img.shape[0] / scale_factor), int(img.shape[1] / scale_factor)))
@@ -251,13 +163,7 @@ if __name__ == "__main__":
         # renderObj = Render(img.shape[1], img.shape[0], meshData, m.face)
 
 
-        # initFit = least_squares(opt.denseExpOnlyResiduals, param[m.numId:], jac = opt.denseExpOnlyJacobian, max_nfev = 10, args = (idCoef, texCoef, shCoef.reshape(9 ,3), img, m, renderObj, (1, 2.5e-4)), verbose = 0, x_scale = 'jac')
-        # expCoef = initFit['x']
-        # param = np.r_[idCoef, expCoef]
-
-        # initFit = least_squares(opt.denseJointExpResiduals, np.r_[shCoef, param[m.numId:]], max_nfev = 10, jac = opt.denseJointExpJacobian, args = (idCoef, texCoef, img, lm, m, renderObj, (1, 0.000025, 2.5e-4)), verbose = 0, x_scale = 'jac')
         # LSMR is numerically stable combared to the default option (Exact)
-        #
         initFit = least_squares(opt.denseJointExpResiduals, np.r_[shCoef, param[m.numId:]], tr_solver = 'lsmr', max_nfev = 10, jac = opt.denseJointExpJacobian, args = (idCoef, texCoef, img, lm, m, renderObj, (1, 2.5e-5, 1.25e-4)), verbose = 0, x_scale = 'jac')
         shCoef = initFit['x'][:27]
         expCoef = initFit['x'][27:]
@@ -287,5 +193,5 @@ if __name__ == "__main__":
         # plt.show()
 
         scipy.misc.imsave("./" + str(frame) + ".png", rendering)
-        #np.save("./" + str(frame) + "_parameters", param)
+        # np.save("./" + str(frame) + "_parameters", param)
         # break
