@@ -493,7 +493,8 @@ def denseJointExpJacobian(param, idCoef, texCoef, img, target, model, renderObj,
     return np.r_[wcol * J_denseCoef, wlan * Jlan_landmarks, wreg_shape * eq2]
 
 
-# MULTI-FRAME ~ Testing
+
+# MULTI-FRAME
 def multiDenseJointResiduals(params, imgs, targets, model, renderObj, w = (1, 1, 1, 1), randomFacesNum = None):
     if len(imgs.shape) is 3:
         imgs = imgs[np.newaxis, :]

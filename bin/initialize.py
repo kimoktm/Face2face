@@ -6,8 +6,6 @@ from mm.optimize.camera import estimateCamMat, splitCamMat
 import mm.optimize.image as opt
 from mm.utils.mesh import generateFace, generateTexture, writePly
 
-import os
-import time
 import dlib
 import cv2
 import scipy.misc
@@ -17,9 +15,14 @@ from skimage import io, img_as_float
 from skimage.transform import resize
 import matplotlib.pyplot as plt
 
+import os
+import glob
+import argparse
+import time
 
 
-def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=640):
+
+def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=320):
     imgScale = 1
     scaledImg = img
     if max(img.shape) > maxImgSizeForDetection:
@@ -42,9 +45,17 @@ def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=640):
     return shapes2D
 
 
+def main():
+    # Set weights for the 3DMM RGB color shape, landmark shape, and regularization terms
+    scale_factor = 1.0
+    max_iterations = 40
+    wCol = 1
+    # wLan = 1.25e-4
+    wLan = 3.0e-5
+    wRegC = 0.025e-5
+    wRegS = 0.25e-5
 
-if __name__ == "__main__":
-    
+
     # Change directory to the folder that holds the VRN data, OpenPose landmarks, and original images (frames) from the source video
     os.chdir('./data')
 
@@ -59,12 +70,6 @@ if __name__ == "__main__":
     detector = dlib.get_frontal_face_detector()
     predictor = dlib.shape_predictor(predictor_path)
     
-    # Set weights for the 3DMM RGB color shape, landmark shape, and regularization terms
-    wCol = 1
-    wLan = 1.25e-4
-    wRegC = 2.5e-5
-    wRegS = 1.25e-5
-
 
     # load images
     idCoef = np.zeros(m.numId)
@@ -80,16 +85,16 @@ if __name__ == "__main__":
     img_params = []
     renderObj = None
 
-    for frame in np.arange(0, 3):
-        fName = '{:0>6}'.format(frame)
-        fNameImgOrig = 'obama/init/' + fName + '.png'
+    # load images & estimate camera params
+    data_path = os.path.join(FLAGS.input_dir, '*g')
+    keyframes = glob.glob(data_path)
+    keyframes.sort()
 
-        # fName = 'subject_1_{:0>12}'.format(frame)
-        # fNameImgOrig = 'jack/orig/' + fName + '_rendered.png'
-
+    for i, frame in enumerate(keyframes):
         # Load the source video frame and convert to 64-bit float
-        b,g,r = cv2.split(cv2.imread(fNameImgOrig))
+        b,g,r = cv2.split(cv2.imread(frame))
         img_org = cv2.merge([r,g,b])
+        img_org = cv2.GaussianBlur(img_org, (3, 3), 0)
         img = img_as_float(img_org)
 
         shape2D = getFaceKeypoints(img_org, detector, predictor)
@@ -97,7 +102,6 @@ if __name__ == "__main__":
         lm = shape2D[m.targetLMInd, :2]
 
         # Resize image for speed
-        scale_factor = 2.0
         img = resize(img, (int(img.shape[0] / scale_factor), int(img.shape[1] / scale_factor)))
         lm = lm / scale_factor
 
@@ -120,11 +124,22 @@ if __name__ == "__main__":
         # Concatenate parameters for input into optimization routine. Note that the translation vector here is only (2,) for x and y (no z)
         unique_img_param = np.r_[shCoef.flatten(), expCoef, angles, t, s]
 
-        if frame == 0:
+        if i == 0:
             # Initialize render Object
             texture = m.texMean
             meshData = np.r_[vertexCoords.T, texture.T]
             renderObj = Render(img.shape[1], img.shape[0], meshData, m.face)
+
+            # Adjust Landmarks to be consistent across segments
+            p1_id = 27 # nose
+            p2_id = 8  # jaw
+            x2 = lm[p1_id, 0]
+            x1 = lm[p2_id, 0]
+            y2 = lm[p1_id, 1]
+            y1 = lm[p2_id, 1]
+            nosejaw_dist = ((x2 - x1)**2 + (y2 - y1)**2)**(1/2)
+            wLan = wLan * (225.0 / nosejaw_dist)
+
 
         # append parameters
         imgs.append(img)
@@ -141,15 +156,13 @@ if __name__ == "__main__":
         img_params = img_params[np.newaxis, :]
 
 
-
-
     #
     # Jointly optimize all params over N images
     #
     start = time.time()
 
     allParams = np.r_[texCoef, idCoef, img_params.flatten()]
-    initShapeTexLight = least_squares(opt.multiDenseJointResiduals, allParams, jac = opt.multiDenseJointJacobian, tr_solver = 'lsmr', max_nfev = 80, args = (imgs, landmarks, m, renderObj, (wCol, wLan, wRegC, wRegS)), verbose = 2, x_scale = 'jac')
+    initShapeTexLight = least_squares(opt.multiDenseJointResiduals, allParams, jac = opt.multiDenseJointJacobian, tr_solver = 'lsmr', max_nfev = max_iterations, args = (imgs, landmarks, m, renderObj, (wCol, wLan, wRegC, wRegS)), verbose = 2, x_scale = 'jac')
     allParams = initShapeTexLight['x']
     texCoef = allParams[: texCoef.size]
     idCoef = allParams[texCoef.size : texCoef.size + idCoef.size]
@@ -177,18 +190,35 @@ if __name__ == "__main__":
         renderObj.render()
         rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
 
-        # print(texParam[texCoef.size:].reshape(9, 3))
-        plt.figure(str(i) + " Shape & Texture & SH")
-        plt.imshow(rendering)
+        # # print(texParam[texCoef.size:].reshape(9, 3))
+        # plt.figure(str(i) + " Shape & Texture & SH")
+        # plt.imshow(rendering)
 
-        # Plot the 3DMM landmarks with the OpenPose landmarks over the image
-        plt.figure(str(i) + " Desne fitting")
-        plt.imshow(imgs[i])
-        plt.scatter(vertexCoords[0, m.sourceLMInd], vertexCoords[1, m.sourceLMInd], s = 3, c = 'r')
-        plt.scatter(landmarks[i, :, 0], landmarks[i, :, 1], s = 2, c = 'g')
+        # # Plot the 3DMM landmarks with the OpenPose landmarks over the image
+        # plt.figure(str(i) + " Desne fitting")
+        # plt.imshow(imgs[i])
+        # plt.scatter(vertexCoords[0, m.sourceLMInd], vertexCoords[1, m.sourceLMInd], s = 3, c = 'r')
+        # plt.scatter(landmarks[i, :, 0], landmarks[i, :, 1], s = 2, c = 'g')
 
-        writePly("../mesh_multi_all.ply", vertexCoords, m.face, texture)
-        scipy.misc.imsave("./multi" + str(i) + ".png", rendering)
+        scipy.misc.imsave(os.path.join(FLAGS.output_dir, "multi" + str(i) + ".png"), rendering)
 
-    np.save("all_parameters", allParams)
-    plt.show()
+        if i == 0:
+            expCoef[-3:] * scale_factor
+            first_frame_param = np.r_[texCoef, shCoef, idCoef, expCoef]
+            writePly(os.path.join(FLAGS.output_dir, "mesh.ply"), vertexCoords, m.face, texture)
+            np.save(os.path.join(FLAGS.output_dir, "params"), first_frame_param)
+
+    # TO DO: scale poses up
+    np.save(os.path.join(FLAGS.output_dir, "all_params"), allParams)
+    # plt.show()
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description = 'Initialize Identity & Texture from multiple frames')
+    parser.add_argument('--input_dir', help = 'Path to frames')
+    parser.add_argument('--output_dir', help = 'Output directory')
+
+    FLAGS, unparsed = parser.parse_known_args()
+
+    main()
