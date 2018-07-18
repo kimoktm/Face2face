@@ -120,6 +120,111 @@ def calcFaceNormals(vertexCoord, model, pixelFaces = None):
     return normalize(faceNorm, norm = 'l2')
 
 
+# capture vertices colors
+def bilinear_interpolate(im, x, y):
+    # x = np.asarray(x)
+    # y = np.asarray(y)
+    x0 = np.floor(x).astype(int)
+    x1 = x0 + 1
+    y0 = np.floor(y).astype(int)
+    y1 = y0 + 1
+
+    x0 = np.clip(x0, 0, im.shape[1]-1);
+    x1 = np.clip(x1, 0, im.shape[1]-1);
+    y0 = np.clip(y0, 0, im.shape[0]-1);
+    y1 = np.clip(y1, 0, im.shape[0]-1);
+
+    Ia = im[ y0, x0 ]
+    Ib = im[ y1, x0 ]
+    Ic = im[ y0, x1 ]
+    Id = im[ y1, x1 ]
+
+    wa = (x1-x) * (y1-y)
+    wb = (x1-x) * (y-y0)
+    wc = (x-x0) * (y1-y)
+    wd = (x-x0) * (y-y0)
+
+    waI = np.multiply(wa[:, np.newaxis], Ia)
+    wbI = np.multiply(wb[:, np.newaxis], Ib)
+    wcI = np.multiply(wc[:, np.newaxis], Ic)
+    wdI = np.multiply(wd[:, np.newaxis], Id)
+
+    return waI + wbI + wcI + wdI
+
+def getImgColors(vertexCoord, shCoef, img, model, renderObj):
+    # render to get visible vertices
+    renderObj.updateVertexBuffer(np.r_[vertexCoord.T, model.texMean.T])
+    renderObj.resetFramebufferObject()
+    renderObj.render()
+    pixelFaces = renderObj.grabRendering(return_info = True)[2]
+
+    # only set visible vertices
+    # visibleVertices = np.unique(model.face[pixelFaces, :])
+    visibleVertices = np.unique(model.face)
+
+    # TO DO: hard-coded orthographic projection
+    sampledPixels = bilinear_interpolate(img, vertexCoord[:, visibleVertices][0, :], vertexCoord[:, visibleVertices][1, :])
+
+    # delight img (sampled pixels)
+    # Evaluate spherical harmonics at face shape normals
+    vertexNorms = calcNormals(vertexCoord, model)
+    sh = sh9(vertexNorms[:, 0], vertexNorms[:, 1], vertexNorms[:, 2])
+    sh = sh[:, visibleVertices]
+    for c in range(3):
+        sampledPixels[:, c] = sampledPixels[:, c] / np.dot(shCoef[:, c], sh)
+
+    # light again
+    for c in range(3):
+        sampledPixels[:, c] = sampledPixels[:, c] * np.dot(shCoef[:, c], sh)
+
+    vertexColor = np.zeros((model.texMean.shape))
+    vertexColor[:, visibleVertices] = sampledPixels.T
+
+    return vertexColor, visibleVertices
+
+
+def getImgsColors(vertexCoords, shCoefs, imgs, model, renderObj):
+    imgColors = []
+    imgMasks  = []
+    imgNormals= []
+
+    num_images = imgs.shape[0]
+    for i in range(num_images):
+        imgColor, imgMask = getImgColors(vertexCoords[i], shCoefs[i], imgs[i], model, renderObj)
+        imgColors.append(imgColor)
+        imgMasks.append(imgMask)
+        imgNormals.append(calcNormals(vertexCoords[i], model))
+
+    imgColors  = np.asarray(imgColors)
+    imgMasks   = np.asarray(imgMasks)
+    imgNormals = np.asarray(imgNormals)
+
+    # blend img projections
+    vertexColor = np.zeros((model.texMean.shape))
+    # vertexColor = generateTexture(vertexCoords[0], np.r_[texCoef, shCoefs[0].flatten()], model)
+
+    # Average blending
+    # for i in range(num_images):
+    #     vertexColor = vertexColor + imgColors[i]
+    # vertexColor = vertexColor / num_images
+
+    # View-based blending
+    view_vector = np.array([0, 0, -1])
+    for v in np.unique(model.face):
+        weights = []
+        for i in range(num_images):
+            influence = 0
+            if v in imgMasks[i]:
+                influence = np.clip(np.dot(imgNormals[i, v], view_vector), -1.0, 1.0) + 1
+            weights.append(influence)
+        weights = normalize(np.asarray(weights)[np.newaxis, :], norm = 'l1')
+
+        for i in range(num_images):
+            vertexColor[:, v] = vertexColor[:, v] + imgColors[i, :, v] * weights[0][i]
+
+    return vertexColor
+
+
 def subdivide(v, f):
     """Uses Catmull-Clark subdivision to subdivide a 3DMM with quadrilateral faces, increasing the number of faces by 4 times.
     
@@ -235,7 +340,7 @@ def writePly(file_name, vertices, faces, colors, landmarks = None):
     file.write("ply\nformat ascii 1.0\n")
     file.write("element vertex %d\n" % num_vertices)
     file.write("property float x\nproperty float y\nproperty float z\n")
-    if landmarks is not None:
+    if colors is not None:
         file.write("property uchar red\nproperty uchar green\nproperty uchar blue\n")
 
     file.write("element face %d\n" % num_faces)
@@ -244,12 +349,15 @@ def writePly(file_name, vertices, faces, colors, landmarks = None):
     for i in range(num_vertices):
         x, y, z = vertices[:, i]
         file.write(str(x) + ' ' + str(y) + ' ' + str(z))
+
+        r, g, b = [255, 255, 255]
+        if colors is not None:
+            r, g, b = np.clip(colors[:, i] * 255, 0, 255)
         if landmarks is not None:
             if i in landmarks:
-                file.write(' 0 0 0')
-            else:
-                r, g, b = colors[:, i] * 255
-                file.write(' ' + str(int(r)) + ' ' + str(int(g)) + ' ' + str(int(b)))
+                r, g, b = [0, 0, 0]
+
+        file.write(' ' + str(int(r)) + ' ' + str(int(g)) + ' ' + str(int(b)))
         file.write('\n')
 
     for i in range(num_faces):

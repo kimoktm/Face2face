@@ -4,7 +4,7 @@ from mm.models import MeshModel
 from mm.utils.opengl import Render
 from mm.optimize.camera import estimateCamMat, splitCamMat
 import mm.optimize.image as opt
-from mm.utils.mesh import generateFace, generateTexture, writePly
+from mm.utils.mesh import generateFace, generateTexture, getImgsColors, writePly
 
 import dlib
 import cv2
@@ -94,7 +94,7 @@ def main():
         # Load the source video frame and convert to 64-bit float
         b,g,r = cv2.split(cv2.imread(frame))
         img_org = cv2.merge([r,g,b])
-        img_org = cv2.GaussianBlur(img_org, (3, 3), 0)
+        # img_org = cv2.GaussianBlur(img_org, (3, 3), 0)
         img = img_as_float(img_org)
 
         shape2D = getFaceKeypoints(img_org, detector, predictor)
@@ -159,19 +159,15 @@ def main():
     #
     # Jointly optimize all params over N images
     #
-    start = time.time()
-
-    allParams = np.r_[texCoef, idCoef, img_params.flatten()]
-    initShapeTexLight = least_squares(opt.multiDenseJointResiduals, allParams, jac = opt.multiDenseJointJacobian, tr_solver = 'lsmr', max_nfev = max_iterations, args = (imgs, landmarks, m, renderObj, (wCol, wLan, wRegC, wRegS)), verbose = 2, x_scale = 'jac')
-    allParams = initShapeTexLight['x']
+    allParams = np.load(os.path.join(FLAGS.output_dir, "all_params.npy"))
     texCoef = allParams[: texCoef.size]
     idCoef = allParams[texCoef.size : texCoef.size + idCoef.size]
     img_params = allParams[texCoef.size + idCoef.size :].reshape(img_params.shape)
 
-    elapsed = time.time() - start
-    print(time.strftime("%H:%M:%S", time.gmtime(elapsed)))
-
     # Visualize results
+    vertexCoordsList = []
+    shCoefList = []
+
     for i in range(img_params.shape[0]):
         shCoef = img_params[i, : 27]
         expCoef = img_params[i, 27 : ]
@@ -181,14 +177,17 @@ def main():
         # Generate 3DMM vertices from shape and similarity transform parameters
         vertexCoords = generateFace(np.r_[shapeParam[:-1], 0, shapeParam[-1]], m)
 
-        # Generate 3DMM texture form vertex & sh parameters
-        texture = generateTexture(vertexCoords, texParam, m)
+        vertexCoordsList.append(vertexCoords)
+        shCoefList.append(shCoef.reshape((9, 3)))
 
-        # Render the 3DMM
-        renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
-        renderObj.resetFramebufferObject()
-        renderObj.render()
-        rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
+        # Generate 3DMM texture form vertex & sh parameters
+        # texture = generateTexture(vertexCoords, texParam, m)
+
+        # # Render the 3DMM
+        # renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
+        # renderObj.resetFramebufferObject()
+        # renderObj.render()
+        # rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
 
         # # print(texParam[texCoef.size:].reshape(9, 3))
         # plt.figure(str(i) + " Shape & Texture & SH")
@@ -200,16 +199,19 @@ def main():
         # plt.scatter(vertexCoords[0, m.sourceLMInd], vertexCoords[1, m.sourceLMInd], s = 3, c = 'r')
         # plt.scatter(landmarks[i, :, 0], landmarks[i, :, 1], s = 2, c = 'g')
 
-        scipy.misc.imsave(os.path.join(FLAGS.output_dir, "multi" + str(i) + ".png"), rendering)
 
-        if i == 0:
-            expCoef[-3:] * scale_factor
-            first_frame_param = np.r_[texCoef, shCoef, idCoef, expCoef]
-            writePly(os.path.join(FLAGS.output_dir, "mesh.ply"), vertexCoords, m.face, texture)
-            np.save(os.path.join(FLAGS.output_dir, "params"), first_frame_param)
+    # TEST: Capture Texture
+    vertexImgColor = getImgsColors(vertexCoordsList, shCoefList, imgs, m, renderObj)
+    writePly(os.path.join(FLAGS.output_dir, "mesh.ply"), vertexCoords, m.face, vertexImgColor)
+    
+    for i in range(img_params.shape[0]):
+        renderObj = Render(imgs[i].shape[1], imgs[i].shape[0], np.r_[vertexCoordsList[i].T, vertexImgColor.T], m.face, False)
+        renderObj.render()
+        rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
+        scipy.misc.imsave(os.path.join(FLAGS.output_dir, "textured_" + str(i) + ".png"), rendering)
+        # plt.figure("Captured Texture")
+        # plt.imshow(rendering)
 
-    # TO DO: scale poses up
-    np.save(os.path.join(FLAGS.output_dir, "all_params"), allParams)
     plt.show()
 
 

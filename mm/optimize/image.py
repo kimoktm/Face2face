@@ -154,7 +154,7 @@ def denseJointResiduals(param, img, target, model, renderObj, w = (1, 1, 1, 1), 
         pixelCoord = pixelCoord[randomFaces, :]
     else:
         numPixels = pixelCoord.shape[0]
-    
+
     rendering = rendering[pixelCoord[:, 0], pixelCoord[:, 1]]
     img = img[pixelCoord[:, 0], pixelCoord[:, 1]]
 

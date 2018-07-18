@@ -51,8 +51,10 @@ def main():
     wCol = 1
     # wLan = 2.5e-5
     # wRegS = 1.25e-4
-    wLan = 0.85e-5
-    wRegS = 1.25e-4
+    wLan = 1.25e-5
+    wRegS = 0.25e-4
+    # lsmr is numerically accurate but slower
+    tr_solver = 'lsmr'
 
 
     # Change directory to the folder that holds the VRN data, OpenPose landmarks, and original images (frames) from the source video
@@ -80,7 +82,7 @@ def main():
     data_path = os.path.join(FLAGS.input_dir, '*.png')
     keyframes = glob.glob(data_path)
 
-    for i in range(FLAGS.start_frame, len(keyframes) - FLAGS.start_frame):
+    for i in range(FLAGS.start_frame, len(keyframes)):
         print(i)
         fNameImgOrig = os.path.join(FLAGS.input_dir, str(i) + '.png')
 
@@ -128,7 +130,7 @@ def main():
         # Optimization over all experssion & SH
         # """
         # LSMR is numerically stable combared to the default option (Exact)
-        initFit = least_squares(opt.denseJointExpResiduals, np.r_[shCoef, param[m.numId:]], tr_solver = 'lsmr', max_nfev = max_iterations, jac = opt.denseJointExpJacobian, args = (idCoef, texCoef, img, lm, m, renderObj, (wCol, wLan, wRegS)), verbose = 0, x_scale = 'jac')
+        initFit = least_squares(opt.denseJointExpResiduals, np.r_[shCoef, param[m.numId:]], tr_solver = tr_solver, max_nfev = max_iterations, jac = opt.denseJointExpJacobian, args = (idCoef, texCoef, img, lm, m, renderObj, (wCol, wLan, wRegS)), verbose = 0, x_scale = 'jac')
         shCoef = initFit['x'][:27]
         expCoef = initFit['x'][27:]
         param = np.r_[idCoef, expCoef]
