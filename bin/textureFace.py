@@ -11,7 +11,7 @@ import cv2
 import scipy.misc
 import numpy as np
 from scipy.optimize import least_squares
-from skimage import io, img_as_float
+from skimage import io, img_as_float, img_as_ubyte
 from skimage.transform import resize
 import matplotlib.pyplot as plt
 
@@ -43,6 +43,13 @@ def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=320):
         shapes2D.append(shape2D)
 
     return shapes2D
+
+
+def saveImage(path, img):
+    b,g,r = cv2.split(img)
+    img = cv2.merge([r,g,b])
+    img = img_as_ubyte(img)
+    cv2.imwrite(path, img)
 
 
 def main():
@@ -155,7 +162,6 @@ def main():
         landmarks = landmarks[np.newaxis, :]
         img_params = img_params[np.newaxis, :]
 
-
     #
     # Jointly optimize all params over N images
     #
@@ -180,37 +186,23 @@ def main():
         vertexCoordsList.append(vertexCoords)
         shCoefList.append(shCoef.reshape((9, 3)))
 
-        # Generate 3DMM texture form vertex & sh parameters
-        # texture = generateTexture(vertexCoords, texParam, m)
-
-        # # Render the 3DMM
-        # renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
-        # renderObj.resetFramebufferObject()
-        # renderObj.render()
-        # rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
-
-        # # print(texParam[texCoef.size:].reshape(9, 3))
-        # plt.figure(str(i) + " Shape & Texture & SH")
-        # plt.imshow(rendering)
-
-        # # Plot the 3DMM landmarks with the OpenPose landmarks over the image
-        # plt.figure(str(i) + " Desne fitting")
-        # plt.imshow(imgs[i])
-        # plt.scatter(vertexCoords[0, m.sourceLMInd], vertexCoords[1, m.sourceLMInd], s = 3, c = 'r')
-        # plt.scatter(landmarks[i, :, 0], landmarks[i, :, 1], s = 2, c = 'g')
-
+        # if i == 2:
+        #     first_frame_param = np.r_[texCoef, shCoef, idCoef, expCoef]
+        #     np.save(os.path.join(FLAGS.output_dir, "params"), first_frame_param)
 
     # TEST: Capture Texture
     vertexImgColor = getImgsColors(vertexCoordsList, shCoefList, imgs, m, renderObj)
-    writePly(os.path.join(FLAGS.output_dir, "mesh.ply"), vertexCoords, m.face, vertexImgColor)
-    
+    np.save(os.path.join(FLAGS.output_dir, "texture"), vertexImgColor)
+
     for i in range(img_params.shape[0]):
-        renderObj = Render(imgs[i].shape[1], imgs[i].shape[0], np.r_[vertexCoordsList[i].T, vertexImgColor.T], m.face, False)
+        lightedImgColor = generateTexture(vertexCoordsList[i], np.r_[texCoef, shCoefList[i].flatten()], m, vertexImgColor)
+        renderObj = Render(imgs[i].shape[1], imgs[i].shape[0], np.r_[vertexCoordsList[i].T, lightedImgColor.T], m.face, False, imgs[i])
         renderObj.render()
         rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
-        scipy.misc.imsave(os.path.join(FLAGS.output_dir, "textured_" + str(i) + ".png"), rendering)
-        # plt.figure("Captured Texture")
-        # plt.imshow(rendering)
+        saveImage(os.path.join(FLAGS.output_dir, "textured_" + str(i) + ".png"), rendering)
+
+        if i == 0:
+            writePly(os.path.join(FLAGS.output_dir, "textured_mesh.ply"), vertexCoordsList[0], m.face, lightedImgColor)
 
     plt.show()
 

@@ -4,14 +4,14 @@ from mm.models import MeshModel
 from mm.utils.opengl import Render
 from mm.optimize.camera import estimateCamMat, splitCamMat
 import mm.optimize.image as opt
-from mm.utils.mesh import generateFace, generateTexture, writePly
+from mm.utils.mesh import generateFace, generateTexture, getImgsColors, writePly
 
 import dlib
 import cv2
 import scipy.misc
 import numpy as np
 from scipy.optimize import least_squares
-from skimage import io, img_as_float
+from skimage import io, img_as_float, img_as_ubyte
 from skimage.transform import resize
 import matplotlib.pyplot as plt
 
@@ -19,6 +19,7 @@ import os
 import glob
 import argparse
 import time
+import pandas as pd
 
 
 
@@ -45,15 +46,36 @@ def getFaceKeypoints(img, detector, predictor, maxImgSizeForDetection=320):
     return shapes2D
 
 
+def loadOpenFaceKeypoints(frame_cnt, openFace_landmarks):
+    shapes2D = []
+    frame = openFace_landmarks[openFace_landmarks['frame'] == frame_cnt]
+
+    for i in range(0, 68):
+        x = frame[' x_' + str(i)].values[0]
+        y = frame[' y_' + str(i)].values[0]
+        shapes2D.append([x, y])
+
+    return shapes2D
+
+
+def saveImage(path, img):
+    b,g,r = cv2.split(img)
+    img = cv2.merge([r,g,b])
+    img = img_as_ubyte(img)
+    cv2.imwrite(path, img)
+
+
 def main():
     # Set weights for the 3DMM RGB color shape, landmark shape, and regularization terms
     scale_factor = 1.0
-    max_iterations = 40
+    max_iterations = 32
     wCol = 1
     # wLan = 1.25e-4
     wLan = 2.9e-5
     wRegC = 0.025e-5
     wRegS = 0.25e-5
+    # lsmr is numerically stable and faster
+    tr_solver = 'lsmr'
 
 
     # Change directory to the folder that holds the VRN data, OpenPose landmarks, and original images (frames) from the source video
@@ -66,10 +88,14 @@ def main():
     cam = 'orthographic'
 
     # Landmark detector
-    predictor_path = "../models/shape_predictor_68_face_landmarks.dat"
-    detector = dlib.get_frontal_face_detector()
-    predictor = dlib.shape_predictor(predictor_path)
-    
+    if FLAGS.openFace_landmarks is None:
+        print('Using dlib landmarks...')
+        predictor_path = "../models/shape_predictor_68_face_landmarks.dat"
+        detector = dlib.get_frontal_face_detector()
+        predictor = dlib.shape_predictor(predictor_path)
+    else:
+        print('Using openFace landmarks...')
+        openFaceData = pd.read_csv(FLAGS.openFace_landmarks)
 
     # load images
     idCoef = np.zeros(m.numId)
@@ -94,11 +120,17 @@ def main():
         # Load the source video frame and convert to 64-bit float
         b,g,r = cv2.split(cv2.imread(frame))
         img_org = cv2.merge([r,g,b])
-        img_org = cv2.GaussianBlur(img_org, (3, 3), 0)
+        #img_org = cv2.GaussianBlur(img_org, (3, 3), 0)
         img = img_as_float(img_org)
 
-        shape2D = getFaceKeypoints(img_org, detector, predictor)
-        shape2D = np.asarray(shape2D)[0].T 
+        if FLAGS.openFace_landmarks is None:
+            shape2D = getFaceKeypoints(img_org, detector, predictor)
+            shape2D = np.asarray(shape2D)[0].T
+        else:
+            frame_name = os.path.splitext(os.path.basename(frame))[0]
+            shape2D = loadOpenFaceKeypoints(int(frame_name) + 1, openFaceData)
+            shape2D = np.asarray(shape2D)
+
         lm = shape2D[m.targetLMInd, :2]
 
         # Resize image for speed
@@ -162,7 +194,7 @@ def main():
     start = time.time()
 
     allParams = np.r_[texCoef, idCoef, img_params.flatten()]
-    initShapeTexLight = least_squares(opt.multiDenseJointResiduals, allParams, jac = opt.multiDenseJointJacobian, tr_solver = 'lsmr', max_nfev = max_iterations, args = (imgs, landmarks, m, renderObj, (wCol, wLan, wRegC, wRegS)), verbose = 2, x_scale = 'jac')
+    initShapeTexLight = least_squares(opt.multiDenseJointResiduals, allParams, jac = opt.multiDenseJointJacobian, tr_solver = tr_solver, max_nfev = max_iterations, args = (imgs, landmarks, m, renderObj, (wCol, wLan, wRegC, wRegS)), verbose = 2, x_scale = 'jac')
     allParams = initShapeTexLight['x']
     texCoef = allParams[: texCoef.size]
     idCoef = allParams[texCoef.size : texCoef.size + idCoef.size]
@@ -172,6 +204,8 @@ def main():
     print(time.strftime("%H:%M:%S", time.gmtime(elapsed)))
 
     # Visualize results
+    shCoefList = []
+    vertexCoordsList = []
     for i in range(img_params.shape[0]):
         shCoef = img_params[i, : 27]
         expCoef = img_params[i, 27 : ]
@@ -200,13 +234,30 @@ def main():
         # plt.scatter(vertexCoords[0, m.sourceLMInd], vertexCoords[1, m.sourceLMInd], s = 3, c = 'r')
         # plt.scatter(landmarks[i, :, 0], landmarks[i, :, 1], s = 2, c = 'g')
 
-        scipy.misc.imsave(os.path.join(FLAGS.output_dir, "multi" + str(i) + ".png"), rendering)
+        saveImage(os.path.join(FLAGS.output_dir, "multi" + str(i) + ".png"), rendering)
+        vertexCoordsList.append(vertexCoords)
+        shCoefList.append(shCoef.reshape((9, 3)))
 
         if i == 0:
             expCoef[-3:] * scale_factor
             first_frame_param = np.r_[texCoef, shCoef, idCoef, expCoef]
-            writePly(os.path.join(FLAGS.output_dir, "mesh.ply"), vertexCoords, m.face, texture)
             np.save(os.path.join(FLAGS.output_dir, "params"), first_frame_param)
+
+
+    # Texture mesh
+    vertexImgColor = getImgsColors(vertexCoordsList, shCoefList, imgs, m, renderObj)
+    np.save(os.path.join(FLAGS.output_dir, "texture"), vertexImgColor)
+
+    for i in range(img_params.shape[0]):
+        lightedImgColor = generateTexture(vertexCoordsList[i], np.r_[texCoef, shCoefList[i].flatten()], m, vertexImgColor)
+        renderObj = Render(imgs[i].shape[1], imgs[i].shape[0], np.r_[vertexCoordsList[i].T, lightedImgColor.T], m.face, False, imgs[i])
+        renderObj.render()
+        rendering = renderObj.grabRendering()
+        saveImage(os.path.join(FLAGS.output_dir, "textured_" + str(i) + ".png"), rendering)
+
+        if i == 0:
+            writePly(os.path.join(FLAGS.output_dir, "textured_mesh.ply"), vertexCoordsList[0], m.face, lightedImgColor)
+
 
     # TO DO: scale poses up
     np.save(os.path.join(FLAGS.output_dir, "all_params"), allParams)
@@ -218,6 +269,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Initialize Identity & Texture from multiple frames')
     parser.add_argument('--input_dir', help = 'Path to frames')
     parser.add_argument('--output_dir', help = 'Output directory')
+    parser.add_argument('--openFace_landmarks', help = 'Path to openface landmarks otherwise dlib will be used (optional)')
 
     FLAGS, unparsed = parser.parse_known_args()
 

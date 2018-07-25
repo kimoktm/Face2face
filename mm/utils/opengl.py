@@ -404,6 +404,11 @@ class Render:
         # Unset the VAO as the current object in the OpenGL context
         glBindVertexArray(0)
         
+    def closeRender(self):
+        """Close glut window freeing up GPU memory
+        """
+        glutDestroyWindow(self.window)
+
     def render(self):
         """Renders the objects defined in the VAO to the FBO.
         """

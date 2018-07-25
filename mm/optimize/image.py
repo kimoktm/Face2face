@@ -320,7 +320,7 @@ def denseJointJacobian(param, img, target, model, renderObj, w = (1, 1, 1, 1), r
 
     return np.r_[wcol * J_denseCoef, wlan * Jlan_landmarks, wreg_color * eq2, wreg_shape * eq3, wreg_shape * eq4]
 
-def denseJointExpResiduals(param, idCoef, texCoef, img, target, model, renderObj, w = (1, 1, 1), randomFacesNum = None):
+def denseJointExpResiduals(param, idCoef, texCoef, img, target, model, renderObj, w = (1, 1, 1), vertexImgColor = None, randomFacesNum = None):
     # Shape eigenvector coefficients
     shCoef = param[: 27].reshape(9, 3)
     param = np.r_[idCoef, param[27:]]
@@ -333,7 +333,7 @@ def denseJointExpResiduals(param, idCoef, texCoef, img, target, model, renderObj
     vertexCoord = generateFace(shape_param, model)
 
     # Generate the texture at the 3DMM vertices from the learned texture coefficients
-    texture = generateTexture(vertexCoord, np.r_[texCoef, shCoef.flatten()], model)
+    texture = generateTexture(vertexCoord, np.r_[texCoef, shCoef.flatten()], model, vertexImgColor)
 
     renderObj.updateVertexBuffer(np.r_[vertexCoord.T, texture.T])
     renderObj.resetFramebufferObject()
@@ -347,7 +347,7 @@ def denseJointExpResiduals(param, idCoef, texCoef, img, target, model, renderObj
     else:
         numPixels = pixelCoord.shape[0]
     
-    rendering = rendering[pixelCoord[:, 0], pixelCoord[:, 1]] * 1.3
+    rendering = rendering[pixelCoord[:, 0], pixelCoord[:, 1]]
     img = img[pixelCoord[:, 0], pixelCoord[:, 1]]
 
     wcol = (w[0] / (numPixels * 3))**(1/2)
@@ -359,7 +359,7 @@ def denseJointExpResiduals(param, idCoef, texCoef, img, target, model, renderObj
 
     return np.r_[wcol * (rendering - img).flatten('F'), wlan * (source - target.T).flatten('F'), wreg_shape * expCoef ** 2 / model.expEval]
 
-def denseJointExpJacobian(param, idCoef, texCoef, img, target, model, renderObj, w = (1, 1, 1), randomFacesNum = None):
+def denseJointExpJacobian(param, idCoef, texCoef, img, target, model, renderObj, w = (1, 1, 1), vertexImgColor = None, randomFacesNum = None):
     # Shape eigenvector coefficients
     shCoef = param[: 27].reshape(9, 3)
     param = np.r_[idCoef, param[27:]]
@@ -379,8 +379,11 @@ def denseJointExpJacobian(param, idCoef, texCoef, img, target, model, renderObj,
     source = vertexCoord[:2, :]
 
     # Generate the texture at the 3DMM vertices from the learned texture coefficients
-    vertexColor = model.texMean + np.tensordot(model.texEvec, texCoef, axes = 1)
-    texture = generateTexture(vertexCoord, np.r_[texCoef, shCoef.flatten()], model)
+    if vertexImgColor is None:
+        vertexColor = model.texMean + np.tensordot(model.texEvec, texCoef, axes = 1)
+    else:
+        vertexColor = vertexImgColor
+    texture = generateTexture(vertexCoord, np.r_[texCoef, shCoef.flatten()], model, vertexImgColor)
 
     renderObj.updateVertexBuffer(np.r_[vertexCoord.T, texture.T])
     renderObj.resetFramebufferObject()
@@ -445,9 +448,9 @@ def denseJointExpJacobian(param, idCoef, texCoef, img, target, model, renderObj,
     # Shape derivative
     # Use per face normal which easier to differentiate
     faceNorms = calcFaceNormals(vertexCoord, model)
-    xxx = dR_normal_faces(vertexCoord, model, Jlan)
+    xxx = dR_normal_faces(vertexCoord, model, Jlan) ### SLOW ###
     zzz = dR_sh(faceNorms[:, 0], faceNorms[:, 1], faceNorms[:, 2], xxx[:, 0], xxx[:, 1], xxx[:, 2])
-    lll = np.empty((3, zzz.shape[1], zzz.shape[2]))
+    lll = np.empty((3, zzz.shape[1], zzz.shape[2])) ### SLOW ###
     for c in range(3):
         for v in range(0, zzz.shape[2]):
             lll[c, :, v] = np.dot(shCoef[:, c], zzz[:, :, v])
@@ -479,10 +482,6 @@ def denseJointExpJacobian(param, idCoef, texCoef, img, target, model, renderObj,
     wcol = (w[0] / (numPixels * 3))**(1/2)
     wlan = (w[1] / model.sourceLMInd.size)**(1/2)
     wreg_shape = w[2]**(1/2)
-
-    # REMOVE - TESTING
-    # Fix non-constant sh coff (dependent on normals)
-    # J_shCoef[:, 3:] = 0
 
     J_denseCoef = np.c_[J_shCoef, J_denshapeCoef]
 

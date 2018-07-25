@@ -36,7 +36,7 @@ def generateFace(param, model, ind = None):
     # After rigid transformation and scaling
     return s * np.dot(R, model) + t[:, np.newaxis]
 
-def generateTexture(vertexCoord, texParam, model):
+def generateTexture(vertexCoord, texParam, model, vertexColor = None):
     """Generates vertex colors based on the 3DMM eigenmodel, the vertex coordinates, and the texture parameters and spherical harmonic lighting parameters.
     
     Args:
@@ -49,7 +49,10 @@ def generateTexture(vertexCoord, texParam, model):
     """
     texCoef = texParam[:model.texEval.size]
     shCoef = texParam[model.texEval.size:].reshape(9, 3)
-    vertexColor = model.texMean + np.tensordot(model.texEvec, texCoef, axes = 1)
+
+    # if texturedVertices used then skip PCA colors
+    if vertexColor is None:
+        vertexColor = model.texMean + np.tensordot(model.texEvec, texCoef, axes = 1)
 
     # Evaluate spherical harmonics at face shape normals
     vertexNorms = calcNormals(vertexCoord, model)
@@ -158,27 +161,21 @@ def getImgColors(vertexCoord, shCoef, img, model, renderObj):
     renderObj.render()
     pixelFaces = renderObj.grabRendering(return_info = True)[2]
 
-    # only set visible vertices
-    # visibleVertices = np.unique(model.face[pixelFaces, :])
-    visibleVertices = np.unique(model.face)
-
     # TO DO: hard-coded orthographic projection
-    sampledPixels = bilinear_interpolate(img, vertexCoord[:, visibleVertices][0, :], vertexCoord[:, visibleVertices][1, :])
+    sampledPixels = bilinear_interpolate(img, vertexCoord[0, :], vertexCoord[1, :])
 
     # delight img (sampled pixels)
     # Evaluate spherical harmonics at face shape normals
     vertexNorms = calcNormals(vertexCoord, model)
     sh = sh9(vertexNorms[:, 0], vertexNorms[:, 1], vertexNorms[:, 2])
-    sh = sh[:, visibleVertices]
     for c in range(3):
         sampledPixels[:, c] = sampledPixels[:, c] / np.dot(shCoef[:, c], sh)
 
-    # light again
-    for c in range(3):
-        sampledPixels[:, c] = sampledPixels[:, c] * np.dot(shCoef[:, c], sh)
-
     vertexColor = np.zeros((model.texMean.shape))
-    vertexColor[:, visibleVertices] = sampledPixels.T
+    vertexColor = sampledPixels.T
+
+    # only set visible vertices
+    visibleVertices = np.unique(model.face[pixelFaces, :])
 
     return vertexColor, visibleVertices
 
@@ -201,26 +198,52 @@ def getImgsColors(vertexCoords, shCoefs, imgs, model, renderObj):
 
     # blend img projections
     vertexColor = np.zeros((model.texMean.shape))
-    # vertexColor = generateTexture(vertexCoords[0], np.r_[texCoef, shCoefs[0].flatten()], model)
 
     # Average blending
+    for i in range(num_images):
+        vertexColor = vertexColor + imgColors[i]
+    vertexColor = vertexColor / num_images
+
+    # # View-based blending
+    # # blend all views without Mask then project front view 
+    # view_vector = np.array([0, 0, 1])
+    # for v in np.unique(model.face):
+    #     weights = []
+    #     for i in range(num_images):
+    #         influence = np.clip(np.dot(imgNormals[i, v], view_vector), -1.0, 1.0) + 1
+    #         # use masked vertices only
+    #         # influence = 0
+    #         # if v in imgMasks[i]:
+    #         #     influence = np.clip(np.dot(imgNormals[i, v], view_vector), -1.0, 1.0) + 1
+    #         weights.append(influence)
+    #     weights = normalize(np.asarray(weights)[np.newaxis, :], norm = 'l1')
+
+    #     for i in range(num_images):
+    #         vertexColor[:, v] = vertexColor[:, v] + imgColors[i, :, v] * weights[0][i]
+
+    # # select most frontal view and project it
+    # front_img = -1
+    # min_angle = float('inf')
     # for i in range(num_images):
-    #     vertexColor = vertexColor + imgColors[i]
-    # vertexColor = vertexColor / num_images
+    #     # 4538 - Eye vertex (can be used as head direction)
+    #     direction = np.dot(imgNormals[i, 8156], view_vector)
+    #     if direction < min_angle:
+    #         min_angle = direction
+    #         front_img = i
 
-    # View-based blending
-    view_vector = np.array([0, 0, -1])
-    for v in np.unique(model.face):
-        weights = []
-        for i in range(num_images):
-            influence = 0
-            if v in imgMasks[i]:
-                influence = np.clip(np.dot(imgNormals[i, v], view_vector), -1.0, 1.0) + 1
-            weights.append(influence)
-        weights = normalize(np.asarray(weights)[np.newaxis, :], norm = 'l1')
+    # # set colors to frontal view
+    # vertexColor[:, imgMasks[front_img]] = 0.8 * imgColors[front_img][:, imgMasks[front_img]] + 0.2 * vertexColor[:, imgMasks[front_img]]
 
-        for i in range(num_images):
-            vertexColor[:, v] = vertexColor[:, v] + imgColors[i, :, v] * weights[0][i]
+    # # Darker nostrils
+    # import colorsys
+    # nostrils = [8872, 8990, 9108, 8991, 9109, 8873, 8989, 7456, 7338, 7220, 7339, 7457, 7221, 7337]
+    # for v in nostrils:
+    #     factor = 0.8
+    #     r, g, b = vertexColor[:, v]
+    #     h, l, s = colorsys.rgb_to_hls(r, g, b)
+    #     l = max(min(l * factor, 1.0), 0.0)
+    #     darker_color = colorsys.hls_to_rgb(h, l, s)
+    #     vertexColor[:, v] = darker_color
 
     return vertexColor
 
