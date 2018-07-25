@@ -97,6 +97,12 @@ def main():
         print('Using openFace landmarks...')
         openFaceData = pd.read_csv(FLAGS.openFace_landmarks)
 
+    # apply mask on faces if supplied
+    if FLAGS.face_mask is not None:
+        mask_id = np.load(FLAGS.face_mask)
+        m.face = np.delete(m.face, mask_id, axis = 0)
+        m.vertex2face = np.array([np.where(np.isin(m.face.T, vertexInd).any(axis = 0))[0] for vertexInd in range(m.numVertices)])
+
     # load images
     idCoef = np.zeros(m.numId)
     expCoef = np.zeros(m.numExp)
@@ -270,6 +276,7 @@ if __name__ == "__main__":
     parser.add_argument('--input_dir', help = 'Path to frames')
     parser.add_argument('--output_dir', help = 'Output directory')
     parser.add_argument('--openFace_landmarks', help = 'Path to openface landmarks otherwise dlib will be used (optional)')
+    parser.add_argument('--face_mask', help = 'Path to face ids to mask as eyes (optional)')
 
     FLAGS, unparsed = parser.parse_known_args()
 

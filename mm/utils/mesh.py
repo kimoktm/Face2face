@@ -200,26 +200,26 @@ def getImgsColors(vertexCoords, shCoefs, imgs, model, renderObj):
     vertexColor = np.zeros((model.texMean.shape))
 
     # Average blending
-    for i in range(num_images):
-        vertexColor = vertexColor + imgColors[i]
-    vertexColor = vertexColor / num_images
+    # for i in range(num_images):
+    #     vertexColor = vertexColor + imgColors[i]
+    # vertexColor = vertexColor / num_images
 
-    # # View-based blending
-    # # blend all views without Mask then project front view 
-    # view_vector = np.array([0, 0, 1])
-    # for v in np.unique(model.face):
-    #     weights = []
-    #     for i in range(num_images):
-    #         influence = np.clip(np.dot(imgNormals[i, v], view_vector), -1.0, 1.0) + 1
-    #         # use masked vertices only
-    #         # influence = 0
-    #         # if v in imgMasks[i]:
-    #         #     influence = np.clip(np.dot(imgNormals[i, v], view_vector), -1.0, 1.0) + 1
-    #         weights.append(influence)
-    #     weights = normalize(np.asarray(weights)[np.newaxis, :], norm = 'l1')
+    # View-based blending
+    # blend all views without Mask then project front view 
+    view_vector = np.array([0, 0, 1])
+    for v in np.unique(model.face):
+        weights = []
+        for i in range(num_images):
+            influence = np.clip(np.dot(imgNormals[i, v], view_vector), -1.0, 1.0) + 1
+            # use masked vertices only
+            # influence = 0
+            # if v in imgMasks[i]:
+            #     influence = np.clip(np.dot(imgNormals[i, v], view_vector), -1.0, 1.0) + 1
+            weights.append(influence)
+        weights = normalize(np.asarray(weights)[np.newaxis, :], norm = 'l1')
 
-    #     for i in range(num_images):
-    #         vertexColor[:, v] = vertexColor[:, v] + imgColors[i, :, v] * weights[0][i]
+        for i in range(num_images):
+            vertexColor[:, v] = vertexColor[:, v] + imgColors[i, :, v] * weights[0][i]
 
     # # select most frontal view and project it
     # front_img = -1

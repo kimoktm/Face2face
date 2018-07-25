@@ -84,7 +84,6 @@ def main():
             drawPoints(frame, shape2D)
             cv2.imshow('frame', frame)
 
-
             cv2.imwrite(os.path.join(FLAGS.output_dir, str(frame_cnt) + ".png"), frame)
             frame_cnt = frame_cnt + 1
             if cv2.waitKey(1) & 0xFF == ord('q'):
