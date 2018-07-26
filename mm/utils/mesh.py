@@ -221,18 +221,18 @@ def getImgsColors(vertexCoords, shCoefs, imgs, model, renderObj):
         for i in range(num_images):
             vertexColor[:, v] = vertexColor[:, v] + imgColors[i, :, v] * weights[0][i]
 
-    # # select most frontal view and project it
-    # front_img = -1
-    # min_angle = float('inf')
-    # for i in range(num_images):
-    #     # 4538 - Eye vertex (can be used as head direction)
-    #     direction = np.dot(imgNormals[i, 8156], view_vector)
-    #     if direction < min_angle:
-    #         min_angle = direction
-    #         front_img = i
+    # select most frontal view and project it
+    front_img = -1
+    min_angle = float('inf')
+    for i in range(num_images):
+        # 4538 - Eye vertex (can be used as head direction)
+        direction = np.dot(imgNormals[i, 8156], view_vector)
+        if direction < min_angle:
+            min_angle = direction
+            front_img = i
 
-    # # set colors to frontal view
-    # vertexColor[:, imgMasks[front_img]] = 0.8 * imgColors[front_img][:, imgMasks[front_img]] + 0.2 * vertexColor[:, imgMasks[front_img]]
+    # set colors to frontal view
+    vertexColor[:, imgMasks[front_img]] = 0.8 * imgColors[front_img][:, imgMasks[front_img]] + 0.2 * vertexColor[:, imgMasks[front_img]]
 
     # # Darker nostrils
     # import colorsys

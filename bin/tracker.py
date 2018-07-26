@@ -20,6 +20,7 @@ import glob
 import argparse
 import time
 import pandas as pd
+from tqdm import tqdm
 
 
 
@@ -131,21 +132,15 @@ def main():
 
     start = time.time()
 
-    for i in range(FLAGS.start_frame, len(keyframes)):
-        print(i)
+    for i in tqdm(range(FLAGS.start_frame, len(keyframes))):
         fNameImgOrig = os.path.join(FLAGS.input_dir, str(i) + '.png')
 
         # Load the source video frame and convert to 64-bit float
         b,g,r = cv2.split(cv2.imread(fNameImgOrig))
         img_org = cv2.merge([r,g,b])
-        
-        # IMPORTNAT: RETUREN IT BACK
         img_org = cv2.GaussianBlur(img_org, (3, 3), 0)
         img = img_as_float(img_org)
 
-        # plt.figure("Blurre")
-        # plt.imshow(img)
-        # plt.show()
 
         if FLAGS.openFace_landmarks is None:
             shape2D = getFaceKeypoints(img_org, detector, predictor)
@@ -162,13 +157,6 @@ def main():
             texParam = np.r_[texCoef, shCoef.flatten()]
             meshData = np.r_[vertexCoords.T, m.texMean.T]
             renderObj = Render(img.shape[1], img.shape[0], meshData, m.face)
-            # renderObj.render()
-
-            # Grab the OpenGL rendering from the video card
-            # rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
-            # scipy.misc.imsave(os.path.join(FLAGS.output_dir, str(i) + "_orig.png"), rendering)
-            # plt.figure("Initial")
-            # plt.imshow(rendering)
 
             # Adjust Landmarks to be consistent across segments
             p1_id = 27 # nose
@@ -225,11 +213,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Initialize Identity & Texture from multiple frames')
     parser.add_argument('--input_dir', help = 'Path to frames')
     parser.add_argument('--parameters', help = 'Path to parameters to start tracking')
-    parser.add_argument('--start_frame', help = 'Frame to start tracking from',type = int, default = 0)
     parser.add_argument('--output_dir', help = 'Output directory')
     parser.add_argument('--openFace_landmarks', help = 'Path to openface landmarks otherwise dlib will be used (optional)')
     parser.add_argument('--img_texture', help = 'Path to texture (vertex space) instead of PCA model (optional)')
     parser.add_argument('--face_mask', help = 'Path to face ids to mask as eyes (optional)')
+    parser.add_argument('--start_frame', help = 'Frame to start tracking from',type = int, default = 0)
 
     FLAGS, unparsed = parser.parse_known_args()
 

@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import os
 import glob
 import argparse
+from tqdm import tqdm
 
 
 def saveImage(path, img):
@@ -40,20 +41,21 @@ def main():
     # apply mask on faces if supplied
     if FLAGS.face_mask is not None:
         mask_id = np.load(FLAGS.face_mask)
+        # import random
+        # mask_id = random.sample(range(0, m.face.shape[0]), m.face.shape[0] - 250)
+        # np.save('/home/karim/Documents/Development/FacialCapture/Facial-Capture/models/250x', mask_id)
         m.face = np.delete(m.face, mask_id, axis = 0)
         m.vertex2face = np.array([np.where(np.isin(m.face.T, vertexInd).any(axis = 0))[0] for vertexInd in range(m.numVertices)])
 
     data_path = os.path.join(FLAGS.input_dir, '*.png')
     keyframes = glob.glob(data_path)
 
-    for i in range(FLAGS.start_frame, FLAGS.start_frame + 50):
-        print(i)
+    for i in tqdm(range(FLAGS.start_frame, len(keyframes))):
         fNameImgOrig = os.path.join(FLAGS.input_dir, str(i) + '.png')
 
         # Load the source video frame and convert to 64-bit float
         b,g,r = cv2.split(cv2.imread(fNameImgOrig))
         img_org = cv2.merge([r,g,b])
-        img_org = cv2.GaussianBlur(img_org, (3, 3), 0)
         img = img_as_float(img_org)
 
         # """
@@ -69,24 +71,20 @@ def main():
 
         # Generate the texture at the 3DMM vertices from the learned texture coefficients
         texParam = np.r_[np.zeros((m.numTex)), shCoef.flatten()]
-        vertexImgColor = vertexImgColor*0 +0.7
+        vertexImgColor = vertexImgColor * 0 + 0.7
         texture = generateTexture(vertexCoords, texParam, m, vertexImgColor)
 
         # Render the 3DMM
-        renderObj = Render(img.shape[1], img.shape[0], np.r_[vertexCoords.T, texture.T], m.face, False, img)
-        renderObj.render()
-        # rendering = renderObj.grabRendering()
-        rendering, pixelCoord, pixelFaces, pixelBarycentricCoords = renderObj.grabRendering(return_info = True)
-        renderObj.closeRender()
+        # renderObj = Render(img.shape[1], img.shape[0], np.r_[vertexCoords.T, texture.T], m.face, False, img)
+        if i == FLAGS.start_frame:
+            renderObj = Render(img.shape[1], img.shape[0], np.r_[vertexCoords.T, texture.T], m.face)
+        else:
+            renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
+            renderObj.resetFramebufferObject()
 
-        # # CPU rendering
-        # Using the barycentric parameters from the rendering, we can reconstruct the image with the 3DMM texture model by taking barycentric combinations of the 3DMM RGB values defined at the vertices
-        # imgReconstruction = barycentricReconstruction(texture, pixelFaces, pixelBarycentricCoords, m.face)
-        # # Put values from the reconstruction into a (height, width, 3) array for plotting
-        # reconstruction = img
-        # reconstruction[pixelCoord[:, 0], pixelCoord[:, 1], :] = imgReconstruction
-        # # print(img[pixelCoord[:, 0], pixelCoord[:, 1]])
-        # # print(imgReconstruction)
+        renderObj.render()
+        rendering = renderObj.grabRendering()
+        # renderObj.closeRender()
 
         saveImage(os.path.join(FLAGS.output_dir, str(i) + ".png"), rendering)
 
