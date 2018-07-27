@@ -357,7 +357,9 @@ def denseJointExpResiduals(param, idCoef, texCoef, img, target, model, renderObj
     # landmakrs error
     source = generateFace(shape_param, model, ind = model.sourceLMInd)[:2, :]
 
-    return np.r_[wcol * (rendering - img).flatten('F'), wlan * (source - target.T).flatten('F'), wreg_shape * expCoef ** 2 / model.expEval]
+    return np.r_[wcol * (rendering - img).flatten('F'), wreg_shape * expCoef ** 2 / model.expEval]
+
+    # return np.r_[wcol * (rendering - img).flatten('F'), wlan * (source - target.T).flatten('F'), wreg_shape * expCoef ** 2 / model.expEval]
 
 def denseJointExpJacobian(param, idCoef, texCoef, img, target, model, renderObj, w = (1, 1, 1), vertexImgColor = None, randomFacesNum = None):
     # Shape eigenvector coefficients
@@ -462,21 +464,21 @@ def denseJointExpJacobian(param, idCoef, texCoef, img, target, model, renderObj,
         imgDer = np.multiply(J_shapeCoef[0, :, :], img_grad_x[:, c][:, np.newaxis]) + np.multiply(J_shapeCoef[1, :, :], img_grad_y[:, c][:, np.newaxis])
         J_denshapeCoef[c * numPixels: (c + 1) * numPixels, :] = shLighting - imgDer
 
-    # landmarks error
-    shape = model.idMean[:, model.sourceLMInd] + np.tensordot(model.idEvec[:, model.sourceLMInd, :], idCoef, axes = 1) + np.tensordot(model.expEvec[:, model.sourceLMInd, :], expCoef, axes = 1)
-    source = (s * np.dot(R, shape) + t[:, np.newaxis])[:2, :]
+    # # landmarks error
+    # shape = model.idMean[:, model.sourceLMInd] + np.tensordot(model.idEvec[:, model.sourceLMInd, :], idCoef, axes = 1) + np.tensordot(model.expEvec[:, model.sourceLMInd, :], expCoef, axes = 1)
+    # source = (s * np.dot(R, shape) + t[:, np.newaxis])[:2, :]
 
-    drV_ddelta = s * np.tensordot(R, model.expEvec[:, model.sourceLMInd, :], axes = 1)
-    drV_dpsi = s * np.dot(dR_dpsi(angles), shape)
-    drV_dtheta = s * np.dot(dR_dtheta(angles), shape)
-    drV_dphi = s * np.dot(dR_dphi(angles), shape)
-    drV_dt = np.tile(np.eye(2), [model.sourceLMInd.size, 1])
-    drV_ds = np.dot(R, shape)
+    # drV_ddelta = s * np.tensordot(R, model.expEvec[:, model.sourceLMInd, :], axes = 1)
+    # drV_dpsi = s * np.dot(dR_dpsi(angles), shape)
+    # drV_dtheta = s * np.dot(dR_dtheta(angles), shape)
+    # drV_dphi = s * np.dot(dR_dphi(angles), shape)
+    # drV_dt = np.tile(np.eye(2), [model.sourceLMInd.size, 1])
+    # drV_ds = np.dot(R, shape)
 
-    Jlan_landmarks = np.c_[drV_ddelta[:2, ...].reshape((source.size, expCoef.size), order = 'F'),\
-     drV_dpsi[:2, :].flatten('F'), drV_dtheta[:2, :].flatten('F'), drV_dphi[:2, :].flatten('F'), drV_dt, drV_ds[:2, :].flatten('F')]
+    # Jlan_landmarks = np.c_[drV_ddelta[:2, ...].reshape((source.size, expCoef.size), order = 'F'),\
+    #  drV_dpsi[:2, :].flatten('F'), drV_dtheta[:2, :].flatten('F'), drV_dphi[:2, :].flatten('F'), drV_dt, drV_ds[:2, :].flatten('F')]
 
-    Jlan_landmarks = np.c_[np.zeros((target.size, 27)), Jlan_landmarks]
+    # Jlan_landmarks = np.c_[np.zeros((target.size, 27)), Jlan_landmarks]
 
     # weighting
     wcol = (w[0] / (numPixels * 3))**(1/2)
@@ -489,7 +491,8 @@ def denseJointExpJacobian(param, idCoef, texCoef, img, target, model, renderObj,
     eq2 = np.zeros((expCoef.size, param.size - model.numId + 27))
     eq2[:, 27 : 27 + expCoef.size] = np.diag(expCoef / model.expEval)
 
-    return np.r_[wcol * J_denseCoef, wlan * Jlan_landmarks, wreg_shape * eq2]
+    return np.r_[wcol * J_denseCoef, wreg_shape * eq2]
+    # return np.r_[wcol * J_denseCoef, wlan * Jlan_landmarks, wreg_shape * eq2]
 
 
 

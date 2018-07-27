@@ -36,9 +36,8 @@ def main():
     m = MeshModel('../models/bfm2017.npz')
 
     samples = [250, 500, 1000, 5000, 10000, 20000, 30000]
-    samples = [5000, 10000, 20000, 30000]
-    samples = [250, 1000, 30000]
-
+    # samples = [5000, 10000, 20000, 30000]
+    # samples = [250, 1000, 30000]
 
     data_path = os.path.join(FLAGS.params_gt, '*.png')
     keyframes = glob.glob(data_path)
@@ -47,6 +46,7 @@ def main():
     sh_lst = []
     exp_lst = []
     pose_lst = []
+    flt_samples = []
 
     for s in tqdm(samples):
         pix_axis = []
@@ -54,7 +54,11 @@ def main():
         exp_axis = []
         pose_axis = []
         params_src = os.path.join(FLAGS.params_folders, 'rendering_' + str(s))
-        print(params_src)
+
+        if not os.path.isdir(params_src):
+            continue
+
+        flt_samples.append(s)
 
         for i in (range(FLAGS.start_frame, len(keyframes), 10)):
             # Load rendered image
@@ -97,41 +101,49 @@ def main():
 
 
     # plot pix difference
-    plt.figure("Pixel Difference")
+    plt.figure("Pixel Difference", figsize=(14, 11.0))
+    plt.title("Pixel Difference")
     plt.ylim([0,60])
     pd = []
-    for s in range(len(samples)):
-        x, = plt.plot(pix_lst[s], label=str(samples[s]))
+    for s in range(len(flt_samples)):
+        x, = plt.plot(pix_lst[s], label=str(flt_samples[s]))
         pd.append(x)
     plt.legend(handles = pd)
+    plt.savefig(os.path.join(FLAGS.output_dir, 'pixel_difference.png'))
 
     # plot Exp difference
-    plt.figure("Exp Difference")
+    plt.figure("Exp Difference", figsize=(14, 11.0))
+    plt.title("Exp Difference")
     plt.ylim([0,400])
     ed = []
-    for s in range(len(samples)):
-        x, = plt.plot(exp_lst[s], label=str(samples[s]))
+    for s in range(len(flt_samples)):
+        x, = plt.plot(exp_lst[s], label=str(flt_samples[s]))
         ed.append(x)
     plt.legend(handles = ed)
-    
+    plt.savefig(os.path.join(FLAGS.output_dir, 'exp_difference.png'))
+
     # plot SH difference
-    plt.figure("SH Difference")
+    plt.figure("SH Difference", figsize=(14, 11.0))
+    plt.title("SH Difference")
     plt.ylim([0,1.0])
     sd = []
-    for s in range(len(samples)):
-        x, = plt.plot(sh_lst[s], label=str(samples[s]))
+    for s in range(len(flt_samples)):
+        x, = plt.plot(sh_lst[s], label=str(flt_samples[s]))
         sd.append(x)
     plt.legend(handles = sd)
+    plt.savefig(os.path.join(FLAGS.output_dir, 'sh_difference.png'))
 
     # plot Pose difference
-    plt.figure("Pose Difference")
+    plt.figure("Pose Difference", figsize=(14, 11.0))
+    plt.title("Pose Difference")
     plt.ylim([0,9])
     dd = []
-    for s in range(len(samples)):
-        x, = plt.plot(pose_lst[s], label=str(samples[s]))
+    for s in range(len(flt_samples)):
+        x, = plt.plot(pose_lst[s], label=str(flt_samples[s]))
         dd.append(x)
     plt.legend(handles = dd)
-    plt.show()
+    plt.savefig(os.path.join(FLAGS.output_dir, 'pose_difference.png'))
+    # plt.show()
 
 
 if __name__ == "__main__":

@@ -276,22 +276,19 @@ class Render:
     def initializeFramebufferObject(self):
         """Creates an FBO and assign a texture to it for the purpose of offscreen rendering. Also assigns textures to hold the barycentric coordinates and face IDs for each pixel during the rendering.
         """
+
         # Create a handle and assign a texture buffer to it
-        renderedTexture = glGenTextures(1)
-        
+        self.renderedTexture = glGenTextures(1)
         # Bind the texture buffer to the GL_TEXTURE_2D target in the OpenGL context
-        glBindTexture(GL_TEXTURE_2D, renderedTexture)
-        
+        glBindTexture(GL_TEXTURE_2D, self.renderedTexture)
         # Attach a texture 'img' (which should be of unsigned bytes) to the texture buffer. If you don't want a specific texture, you can just replace 'img' with 'None'.
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.width, self.height, 0, GL_RGB, GL_FLOAT, self.img)
-        
         # Does some filtering on the texture in the texture buffer
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-        
         # Unbind the texture buffer from the GL_TEXTURE_2D target in the OpenGL context
         glBindTexture(GL_TEXTURE_2D, 0)
-        
+
         # Make a similar texture for the barycentric coordinates of each pixel
         barycentricTexture = glGenTextures(1)
         glBindTexture(GL_TEXTURE_2D, barycentricTexture)
@@ -327,7 +324,7 @@ class Render:
         glBindFramebuffer(GL_FRAMEBUFFER, self.framebufferObject)
         
         # Attaches the texture buffer created above to the GL_COLOR_ATTACHMENT0 attachment point of the FBO
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderedTexture, 0)
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.renderedTexture, 0)
         
         # Attaches the barycentric buffer created above to the GL_COLOR_ATTACHMENT1 attachment point of the FBO
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, barycentricTexture, 0)
@@ -348,17 +345,25 @@ class Render:
         # Unbind the FBO, relinquishing the GL_FRAMEBUFFER back to the window manager (i.e. GLUT)
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
     
-    def resetFramebufferObject(self):
+    def resetFramebufferObject(self, img = None):
         """Erases any drawn objects from the FBO.
         """
         # Use our initialized FBO instead of the default GLUT framebuffer
         glBindFramebuffer(GL_FRAMEBUFFER, self.framebufferObject)
-        
+
         # Clears any color or depth information in the FBO
         glClearColor(0.0, 0.0, 0.0, 1.0)
         glClearDepth(1.0)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-        
+
+        # Attach a texture 'img' to textureBuffer
+        glBindTexture(GL_TEXTURE_2D, self.renderedTexture)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.width, self.height, 0, GL_RGB, GL_FLOAT, img)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        glBindTexture(GL_TEXTURE_2D, 0)
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self.renderedTexture, 0);
+
         # Unbind the FBO, relinquishing the GL_FRAMEBUFFER back to the window manager (i.e. GLUT)
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
     
@@ -403,11 +408,6 @@ class Render:
         
         # Unset the VAO as the current object in the OpenGL context
         glBindVertexArray(0)
-        
-    def closeRender(self):
-        """Close glut window freeing up GPU memory
-        """
-        glutDestroyWindow(self.window)
 
     def render(self):
         """Renders the objects defined in the VAO to the FBO.

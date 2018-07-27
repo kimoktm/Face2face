@@ -75,16 +75,14 @@ def main():
         texture = generateTexture(vertexCoords, texParam, m, vertexImgColor)
 
         # Render the 3DMM
-        # renderObj = Render(img.shape[1], img.shape[0], np.r_[vertexCoords.T, texture.T], m.face, False, img)
         if i == FLAGS.start_frame:
-            renderObj = Render(img.shape[1], img.shape[0], np.r_[vertexCoords.T, texture.T], m.face)
+            renderObj = Render(img.shape[1], img.shape[0], np.r_[vertexCoords.T, texture.T], m.face, False, img)
         else:
             renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
-            renderObj.resetFramebufferObject()
+            renderObj.resetFramebufferObject(img)
 
         renderObj.render()
         rendering = renderObj.grabRendering()
-        # renderObj.closeRender()
 
         saveImage(os.path.join(FLAGS.output_dir, str(i) + ".png"), rendering)
 

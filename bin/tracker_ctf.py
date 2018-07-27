@@ -91,6 +91,11 @@ def main():
     # lsmr is numerically stable and faster
     tr_solver = 'lsmr'
 
+    # corase-to-fine iteration scheme
+    ctf_iterations = [5, 3, 2]
+    ctf_levels     = [4, 2, 1]
+    ctf_renderObjs = []
+
 
     # Change directory to the folder that holds the VRN data, OpenPose landmarks, and original images (frames) from the source video
     os.chdir('./data')
@@ -157,7 +162,10 @@ def main():
             # Rendering of initial 3DMM shape with mean texture model
             texParam = np.r_[texCoef, shCoef.flatten()]
             meshData = np.r_[vertexCoords.T, m.texMean.T]
-            renderObj = Render(img.shape[1], img.shape[0], meshData, m.face)
+
+            # create renderObjs for corase to fine
+            for level in ctf_levels:
+                ctf_renderObjs.append(Render(int(img.shape[1] / level), int(img.shape[0] / level), meshData, m.face))
 
             # Adjust Landmarks to be consistent across segments
             p1_id = 27 # nose
@@ -171,15 +179,19 @@ def main():
 
 
         # """
-        # Optimization over all experssion & SH
+        # Coarse-to-Fine Optimization over all experssion & SH
         # """
-        # LSMR is numerically stable combared to the default option (Exact)
-        initFit = least_squares(opt.denseJointExpResiduals, np.r_[shCoef, param[m.numId:]], tr_solver = tr_solver, max_nfev = max_iterations, jac = opt.denseJointExpJacobian, args = (idCoef, texCoef, img, lm, m, renderObj, (wCol, wLan, wRegS), vertexImgColor), verbose = 0, x_scale = 'jac')
-        shCoef = initFit['x'][:27]
-        expCoef = initFit['x'][27:]
-        param = np.r_[idCoef, expCoef]
+        for l, level in enumerate(ctf_levels):
+            img_resized = cv2.resize(img, (int(img.shape[1] / level), int(img.shape[0] / level)))
+            # img_resized = resize(img, (int(img.shape[0] / level), int(img.shape[1] / level)))
+            param[-3:] = param[-3:] / level
+            initFit = least_squares(opt.denseJointExpResiduals, np.r_[shCoef, param[m.numId:]], tr_solver = tr_solver, max_nfev = ctf_iterations[l], jac = opt.denseJointExpJacobian, args = (idCoef, texCoef, img_resized, lm / level, m, ctf_renderObjs[l], (wCol, wLan * level, wRegS), vertexImgColor), verbose = 0, x_scale = 'jac')
+            shCoef = initFit['x'][:27]
+            expCoef = initFit['x'][27:]
+            param = np.r_[idCoef, expCoef]
+            param[-3:] = param[-3:] * level
 
-        # # Generate 3DMM vertices from shape and similarity transform parameters
+        # Generate 3DMM vertices from shape and similarity transform parameters
         vertexCoords = generateFace(np.r_[param[:-1], 0, param[-1]], m)
 
         # Generate the texture at the 3DMM vertices from the learned texture coefficients
@@ -187,10 +199,10 @@ def main():
         texture = generateTexture(vertexCoords, texParam, m, vertexImgColor)
 
         # Render the 3DMM
-        renderObj.updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
-        renderObj.resetFramebufferObject()
-        renderObj.render()
-        rendering = renderObj.grabRendering()
+        ctf_renderObjs[-1].updateVertexBuffer(np.r_[vertexCoords.T, texture.T])
+        ctf_renderObjs[-1].resetFramebufferObject()
+        ctf_renderObjs[-1].render()
+        rendering = ctf_renderObjs[-1].grabRendering()
 
         saveImage(os.path.join(FLAGS.output_dir, str(i) + ".png"), rendering)
         np.save(os.path.join(FLAGS.output_dir, str(i) + "_params"), np.r_[shCoef, param])
