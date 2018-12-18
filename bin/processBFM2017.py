@@ -81,4 +81,4 @@ def processBFM2017(fName, fNameLandmarks):
 
 if __name__ == '__main__':
 
-    processBFM2017('/Users/karim/Downloads/model2017-1_face12_nomouth.h5', '')
+    processBFM2017('./models/model2017-1_face12_nomouth.h5', '')
