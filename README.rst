@@ -23,23 +23,28 @@ Prerequisites
 * Install via ``pip``: ``pip install -e .``
 
 You need to download 2017 BFM model as we aren't allowed to share it:
+
 * Create `models` folder under `Facial-Capture` 
 * Download Basel model 2017 model from [here](https://faces.dmi.unibas.ch/bfm/bfm2017.html) to `models` folder
 * Process via ``python processBFM2017.py``
 
 Also you would need the trained landmark dlib predictor:
+
 * Download `shape_predictor_68_face_landmarks` from [here](https://github.com/AKSHAYUBHAT/TensorFace/blob/master/openface/models/dlib/shape_predictor_68_face_landmarks.dat) to `models` folder
 
 
 Running
 =======
 
-* First create a face identity (use 1 to 3 images max) using:
-```
-python bin/initialize.py --input_dir path_to_init_images --output_dir path_to_save_identity
-```
+* First create a face identity (use 1 to 3 images max) using
+
+  ```
+  python bin/initialize.py --input_dir path_to_init_images --output_dir path_to_save_identity
+  ```
+
 
 * After creating the identity, you can now track the expressions using:
-```
-python bin/tracker.py --input_dir path_to_tracking_images --output_dir path_to_save_tracking --parameters path_to_save_identity/params.npy
-```
+
+  ```
+  python bin/tracker.py --input_dir path_to_tracking_images --output_dir path_to_save_tracking --parameters path_to_save_identity/params.npy
+  ```
