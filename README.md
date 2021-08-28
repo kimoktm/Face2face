@@ -2,21 +2,21 @@
 This is a Python package to fit 3D morphable models (3DMMs) to images of
 faces. It mainly provides classes to work with and render 3DMMs, and
 functions that use these classes to optimize the objective of fitting
-3DMMs to a source RGB image.
+3DMMs to a source RGB image or a video for facial performance capture.
 
 ![Facial Capture Example](data/facial_capture.gif)
 
 ## Features
--   Fit a 3DMM shape model to a source RGB map.
+-   Fit a 3DMM shape model to a RGB image
 -   Joint optimization of rendering pixel error and landmarks fitting
 -   Fit a 3DMM texture model with spherical harmonic lighting to a
-    source RGB image.
+    source RGB image
 -   Recover the barycentric parameters of the underlying verticles from
     the 3DMM mesh triangles that contribute to each pixel of a person's
-    face in an image.
+    face in an image
 -   Extract per vertex texture
 -   Track expressions and spherical harmonic lighting over a sequence of
-    images.
+    images (or a video)
 
 ## Prerequisites
 -   Python 3
