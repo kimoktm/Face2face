@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from mm.utils.transform import PCA
-from mm.utils.io import exportObj
+from face2face.utils.transform import PCA
+from face2face.utils.io import exportObj
 
 import numpy as np
 import re, os

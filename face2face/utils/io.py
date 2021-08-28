@@ -4,8 +4,6 @@
 """
 import numpy as np
 import re
-import librosa
-from sklearn.neighbors import NearestNeighbors
 
 def importObj(fName, dataToImport = ['v', 'f']):
     """Returns the shape vertices and the list of vertex indices for each mesh face.
@@ -125,66 +123,3 @@ def exportObj(v, c = None, vt = None, f = None, fNameIn = None, fNameOut = 'test
                 elif f.shape[1] == 3:
                     for face in f:
                         fo.write('f ' + str(face[0]) + ' ' + str(face[1]) + ' ' + str(face[2]) + '\n')
-
-def speechProc(fName, numFrames, fps, kuro = False, return_extras = False):
-    """Inputs an audio file and processes audio feature vectors that coincide in time with the source video frames. The audio feature vectors are based on Mel frequency cepstral coefficients (MFCCs). Because the sampling rate in the audio file is likely higher in frequency than that of the video frames, this function finds the samples of the audio features that are nearest neighbors in time to the frames of the video.
-    
-    Args:
-        fName (str): Filename of the audio file
-        numFrames (int): Number of frames for the source video
-        fps (int): The amount of frames per second for the source video
-        kuro (bool): ``True`` if the audio file is the target, and ``False`` if it is the source
-        return_extras (bool): ``True`` to also return the full, unsampled audio features and the time vector for the video frames in addition to the sampled audio features, and ``False`` to only return the sampled audio features.
-    
-    Returns:
-        ndarray or tuple: sampled audio features, or (sampled audio features, full audio features, time vector)
-    """
-    # Take a 1024-point FFT for 1024-sample windows in the audio track
-    nfft = 1024
-    
-    # Set this to have a 50% overlap
-    hopSamples = nfft // 2
-    
-    # Load audio file
-    wav, fs = librosa.load(fName, sr=44100)
-    
-    # Pre-emphasis filter
-    wav = np.r_[wav[0], wav[1:] - 0.97 * wav[:-1]]
-    
-    # Retrieve Mel frequency cepstral coefficients (MFCCs) for each nfft window with 50% overlap
-    mfcc = librosa.feature.mfcc(y = wav, sr = fs, n_mfcc = 13, n_fft = nfft, hop_length = hopSamples)
-    
-    # Replace the first MFCC with the root mean square energy
-    mfcc[0, :] = librosa.feature.rmse(y = wav, n_fft = nfft, hop_length = hopSamples)
-    
-    # Take the first derivative of the current mfcc array
-    mfccDelta = librosa.feature.delta(mfcc)
-    
-    # Concatenate the MFCCs and their derivatives to form the audio feature vector
-    audioFeatures = np.r_[mfcc, mfccDelta]
-    
-    # Get the times [sec] when each video frame occurs
-    timeVecVideo = np.linspace(0, numFrames / fps, numFrames)
-    
-    # Get the times when the window used to evaluate the MFCCs of each audio segment starts
-    timeVecAudioFeatures = np.linspace(0, audioFeatures.shape[1] * hopSamples / fs, audioFeatures.shape[1])
-    
-    # Set up a nearest neighbors search to find the audio feature vector times that are closest to the video frame times
-    NN = NearestNeighbors(n_neighbors = 1, metric = 'l1')
-    NN.fit(timeVecAudioFeatures.reshape(-1, 1))
-    
-    # Fit the nearest neighbors
-    if kuro:
-        # For a target (kuro) audio file, we have to find the number of video frames that it would take up (and we assume that the target audio file is shorter than the source audio file)
-        numFrames = np.ceil(audioFeatures.shape[1] * hopSamples / fs * fps).astype(np.int_)
-        distance, ind = NN.kneighbors(timeVecVideo[:numFrames].reshape(-1, 1))
-    else:
-        distance, ind = NN.kneighbors(timeVecVideo.reshape(-1, 1))
-    
-    # These are the audio features roughly sampled to coincide with each video frame
-    audioFeaturesSampled = audioFeatures[:, ind.squeeze()]
-    
-    if return_extras:
-        return audioFeaturesSampled, audioFeatures, timeVecVideo
-    else:
-        return audioFeaturesSampled

@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from mm.models import MeshModel
+from face2face.models import MeshModel
 
 import cv2
-import scipy.misc
 import numpy as np
-from skimage import io, img_as_float, img_as_ubyte
-from skimage.transform import resize
+from skimage import img_as_float, img_as_ubyte
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import normalize
 
 import os
 import glob

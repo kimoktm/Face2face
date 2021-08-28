@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 from setuptools import setup, find_packages
  
-setup(name='mm',
+setup(
+      name='face2face',
       packages=find_packages(),
-      version='0.1.0', 
-      description='3D morphable models for facial reenactment',
-      author='Leon Nguyen, Yuta Nakashima',
-      author_email='leonnguyen94@gmail.com',
-      license='MIT',)
+      version='0.0.1', 
+      description='Fit 3D morphable model to face & track them',
+      author='Karim Shaban',
+)

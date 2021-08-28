@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from mm.models import MeshModel
-from mm.utils.opengl import Render
-from mm.utils.mesh import generateFace, generateTexture, barycentricReconstruction, writePly
+from face2face.models import MeshModel
+from face2face.utils.opengl import Render
+from face2face.utils.mesh import generateFace, generateTexture, barycentricReconstruction, writePly
 
 import cv2
-import scipy.misc
 import numpy as np
-from skimage import io, img_as_float, img_as_ubyte
-from skimage.transform import resize
+from skimage import img_as_float, img_as_ubyte
 import matplotlib.pyplot as plt
 
 import os

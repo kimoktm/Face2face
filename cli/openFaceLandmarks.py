@@ -5,7 +5,7 @@ import pandas as pd
 
 import cv2
 import numpy as np
-from skimage import io, img_as_float
+from skimage import img_as_float
 
 #delete
 import dlib

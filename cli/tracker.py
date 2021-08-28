@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from mm.models import MeshModel
-from mm.utils.opengl import Render
-from mm.optimize.camera import estimateCamMat, splitCamMat
-import mm.optimize.image as opt
-from mm.utils.mesh import generateFace, generateTexture, writePly
+from face2face.models import MeshModel
+from face2face.utils.opengl import Render
+import face2face.optimize.image as opt
+from face2face.utils.mesh import generateFace, generateTexture
 
 import dlib
 import cv2
-import scipy.misc
 import numpy as np
 from scipy.optimize import least_squares
-from skimage import io, img_as_float, img_as_ubyte
-from skimage.transform import resize
-import matplotlib.pyplot as plt
+from skimage import img_as_float, img_as_ubyte
 
 import os
 import glob

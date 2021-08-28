@@ -54,39 +54,6 @@ def rotMat2angle(R):
         
         return np.dot(Rz, np.dot(Ry, Rx))
 
-def perspectiveTransformKinect(d, inverse = False):
-    """
-    Transformation between pixel indices (u, v) of depth map to real-world coordinates in mm (x, y) for Kinect v1 depth camera (640x480 resolution). Depth values z are in mm. In the forward direction, go from (u, v, z) to (x, y, z). In the inverse direction, go from (x, y, z) to (u, v, z).
-    """
-    # Mapping from (x, y, z) to (uz, vz, z)
-    real2pixel = np.array([[580.606, 0, 314.758], [0, 580.885, 252.187], [0, 0, 1]])
-    
-    # Mapping from (uz, vz, z) to (x, y, z)
-    pixel2real = np.linalg.inv(real2pixel)
-    
-    # Mark depth values that are non-zero
-    nonZeroZ = d[:, 2] != 0
-    
-    if not inverse:
-        uvz = d[nonZeroZ, :]
-        uzvzz = np.c_[np.prod(uvz[:, ::2], axis = 1), np.prod(uvz[:, 1:], axis = 1), uvz[:, 2]]
-        xyz = np.dot(pixel2real, uzvzz.T).T
-        
-        return xyz, nonZeroZ
-    
-    else:
-        xyz = d[nonZeroZ, :]
-        uzvzz = np.dot(real2pixel, xyz.T).T
-        uvz = np.c_[uzvzz[:, 0] / xyz[:, 2], uzvzz[:, 1] / xyz[:, 2], xyz[:, 2]]
-        
-        return uvz, nonZeroZ
-
-def sph2cart(el, az):
-    """
-    Unit sphere elevation and azumuth angles to Cartesian coordinates
-    """
-    return np.sin(el) * np.cos(az), np.sin(el) * np.sin(az), np.cos(el)
-
 def sh9(x, y, z):
     """
     First nine spherical harmonics as functions of Cartesian coordinates
