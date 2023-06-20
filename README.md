@@ -35,8 +35,8 @@ You need to download 2017 BFM model as we aren't allowed to share it:
 
 Also you would need the trained landmark dlib predictor:
 
--   Download shape\_predictor\_68\_face\_landmarks from
-    [here](<https://github.com/AKSHAYUBHAT/TensorFace/blob/master/openface/models/dlib/shape_predictor_68_face_landmarks.dat>)
+-   Download and extract shape\_predictor\_68\_face\_landmarks from
+    [here](<http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2>)
     to models folder
 
 ## Running
