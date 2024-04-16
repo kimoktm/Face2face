@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# import numpy as np
+import numpy as np
 from scipy.sparse.linalg import eigsh
 
 # delete 
-import autograd.numpy as np
+# import autograd.numpy as np
 
 
 def PCA(data, numPC = 80):

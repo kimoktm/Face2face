@@ -78,7 +78,7 @@ def barycentricReconstruction(vertices, pixelFaces, pixelBarycentricCoords, inde
     """
     pixelVertices = indexData[pixelFaces, :]
     
-    if len(vertices.shape) is 1:
+    if len(vertices.shape) == 1:
         vertices = vertices[np.newaxis, :]
 
     numChannels = vertices.shape[0]

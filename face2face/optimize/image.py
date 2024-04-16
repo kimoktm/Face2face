@@ -498,10 +498,10 @@ def denseJointExpJacobian(param, idCoef, texCoef, img, target, model, renderObj,
 
 # MULTI-FRAME
 def multiDenseJointResiduals(params, imgs, targets, model, renderObj, w = (1, 1, 1, 1), randomFacesNum = None):
-    if len(imgs.shape) is 3:
+    if len(imgs.shape) == 3:
         imgs = imgs[np.newaxis, :]
 
-    if len(targets.shape) is 2:
+    if len(targets.shape) == 2:
         targets = targets[np.newaxis, :]
 
     num_images = imgs.shape[0]
@@ -526,10 +526,10 @@ def multiDenseJointResiduals(params, imgs, targets, model, renderObj, w = (1, 1,
     return residuals
 
 def multiDenseJointJacobian(params, imgs, targets, model, renderObj, w = (1, 1, 1, 1), randomFacesNum = None):
-    if len(imgs.shape) is 3:
+    if len(imgs.shape) == 3:
         imgs = imgs[np.newaxis, :]
 
-    if len(targets.shape) is 2:
+    if len(targets.shape) == 2:
         targets = targets[np.newaxis, :]
 
     num_images = imgs.shape[0]

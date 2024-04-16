@@ -77,7 +77,7 @@ def dR_normal(vertexCoord, model, dR_vertex):
         ndarray: Per-vertex normal vectors
     """
 
-    if len(dR_vertex.shape) is 2:
+    if len(dR_vertex.shape) == 2:
         dR_vertex = dR_vertex[:, :, np.newaxis]
 
     a = vertexCoord[:, model.face[:, 0]] - vertexCoord[:, model.face[:, 1]]
@@ -110,7 +110,7 @@ def dR_normal_faces(vertexCoord, model, dR_vertex, pixelFaces = None):
         ndarray: Per-vertex normal vectors
     """
 
-    if len(dR_vertex.shape) is 2:
+    if len(dR_vertex.shape) == 2:
         dR_vertex = dR_vertex[:, :, np.newaxis]
 
     a = vertexCoord[:, model.face[:, 0]] - vertexCoord[:, model.face[:, 1]]

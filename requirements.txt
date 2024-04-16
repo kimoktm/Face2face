@@ -7,3 +7,5 @@ scikit-image
 h5py
 mayavi
 dlib
+opencv-python
+pandas

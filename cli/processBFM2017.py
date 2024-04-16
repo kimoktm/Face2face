@@ -71,7 +71,7 @@ def processBFM2017(fName, fNameLandmarks):
     texEvec = texEvec.reshape((3, numVertices, 199), order = 'F')
     
     # Find the face indices associated with each vertex (for norm calculation)
-    vertex2face = np.array([np.where(np.isin(face, vertexInd).any(axis = 0))[0] for vertexInd in range(numVertices)])
+    vertex2face = np.array([np.where(np.isin(face, vertexInd).any(axis = 0))[0][0] for vertexInd in range(numVertices)])
     face = face.T
     
     # Save into an .npz uncompressed file

@@ -159,7 +159,7 @@ def main():
     landmarks = np.asarray(landmarks)
     img_params = np.asarray(img_params)
 
-    if len(imgs.shape) is 3:
+    if len(imgs.shape) == 3:
         imgs = imgs[np.newaxis, :]
         landmarks = landmarks[np.newaxis, :]
         img_params = img_params[np.newaxis, :]
